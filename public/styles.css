@@ -752,6 +752,23 @@ body.off #root {
   opacity: 0.3;
 }
 
+/* ------------------------------------------------------------- night mode */
+
+/* Wind-down: whole surface drops to ~45% and the bottom band's chatter
+   disappears, leaving clock/weather/agenda as faint embers. The transition is
+   slow on purpose; nobody should see it happen. */
+body.night #root {
+  opacity: 0.45;
+  transition: opacity 30s ease;
+}
+
+body.night .band,
+body.night .hermy,
+body.night #hermy-dialogue {
+  opacity: 0;
+  transition: opacity 30s ease;
+}
+
 /* ------------------------------------------------------ Hermy dialogue box */
 
 /* BN message box: fixed low-center overlay, line-work frame, portrait left,

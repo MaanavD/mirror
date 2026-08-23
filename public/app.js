@@ -741,6 +741,21 @@
     hermySay(`Good morning, Maanav! ${day}, jacked in and ready. Let's make it count.`);
   }
 
+  // ------------------------------------------------------------ night mode
+
+  // From 22:30 until 05:00 the whole surface dims and non-essential modules
+  // (tasks, nanoleaf, quote, hermy) fade out: the mirror keeps clock, weather
+  // and agenda at low brightness for the wind-down, then the display schedule
+  // cuts power at its usual time. Pure CSS class; no server involvement.
+  function nightWatch() {
+    const apply = () => {
+      const h = new Date().getHours() + new Date().getMinutes() / 60;
+      document.body.classList.toggle('night', h >= 22.5 || h < 5);
+    };
+    apply();
+    setInterval(apply, 60_000);
+  }
+
   // ------------------------------------------------------- burn-in shift
 
   const OFFSETS = [
@@ -769,6 +784,7 @@
   connect();
   hermyRun();
   maybeGreet();
+  nightWatch();
   setInterval(shift, BURN_IN_MS);
 
   // A kiosk left running for weeks accumulates renderer cruft; a nightly
