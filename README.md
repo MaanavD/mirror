@@ -86,6 +86,8 @@ reference; the table below is the summary.
 | `GOOGLE_CALENDAR_IDS` | — | Comma-separated; merged chronologically |
 | `NOTION_TOKEN` | — | Empty ⇒ todos module is a stub |
 | `NOTION_DATABASE_ID` | `881a4949…b939` | |
+| `HA_URL` | `http://100.97.0.104:8123` | Home Assistant REST endpoint for Nanoleaf state |
+| `HA_TOKEN_FILE` | `/home/hermes/.hermes/ha_token` | Read server-side; never exposed to the browser |
 | `ZENQUOTES_MODE` | `today` | `today` or `random` |
 | `DISPLAY_TOKEN` | — | Bearer token for `/api/display/*`; empty ⇒ 503 |
 | `PI_AGENT_URL` | — | e.g. `http://pi.tailnet:8420`; empty ⇒ soft state only |
@@ -95,7 +97,7 @@ reference; the table below is the summary.
 | `MOCK` | `0` | `1` ⇒ every module serves mock data |
 
 Refresh cadences are code, not config: weather 15 min, calendar 5 min, notion
-5 min, quote once daily at 04:00 local.
+5 min, Nanoleaf 15 sec, quote once daily at 04:00 local.
 
 ---
 

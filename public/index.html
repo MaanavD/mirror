@@ -79,14 +79,20 @@
       <div id="now-playing" class="mount"></div>
       <div id="hermy-dialogue" class="mount"></div>
 
-      <!-- Bottom band: quote at the left edge (frameless — it is one sentence),
-           task chips in the one remaining frame at the right. -->
+      <!-- Bottom band: the Nanoleaf chip readout sits directly above the
+           quote at lower-left; the task frame supplies the shared top edge. -->
       <div class="band">
-        <section class="quote" id="quote" data-module="quote">
-          <div class="body"></div>
-          <!-- Required by the ZenQuotes terms. Deliberately near-invisible. -->
-          <div class="credit">inspired by ZenQuotes</div>
-        </section>
+        <div class="band-left">
+          <section class="nanoleaf" id="nanoleaf" data-module="nanoleaf">
+            <div class="body"></div>
+          </section>
+
+          <section class="quote" id="quote" data-module="quote">
+            <div class="body"></div>
+            <!-- Required by the ZenQuotes terms. Deliberately near-invisible. -->
+            <div class="credit">inspired by ZenQuotes</div>
+          </section>
+        </div>
 
         <section class="win tasks" id="notion" data-module="notion">
           <div class="frame"></div>

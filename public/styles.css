@@ -209,8 +209,15 @@ body.off #root {
 .days:not(:has(.slot > *)),
 .wx-deck:not(:has(.slot > *)),
 .tasks:not(:has(.body > *)),
-.quote:not(:has(.body > *)) {
+.quote:not(:has(.body > *)),
+.nanoleaf:not(:has(.body > *)) {
   visibility: hidden;
+}
+
+/* Unlike fixed shared frames, an unavailable light module must not leave a
+   blank lit-space reservation above the quote. */
+.nanoleaf:not(:has(.body > *)) {
+  display: none;
 }
 
 .days:has(#cal-today:empty) > .tab:not(.aux),
@@ -525,17 +532,99 @@ body.off #root {
 
 /* ----------------------------------------------------------- bottom band */
 
-/* Both blocks sit on the bottom edge so the band stays as shallow as its
-   tallest member — the slack rides up into the void, never down. */
+/* Both columns share a top edge. The left stack keeps the Nanoleaf readout
+   directly above the quote; the tasks frame remains the right-hand anchor. */
 .band {
   display: grid;
-  grid-template-columns: 1fr 440px;
+  grid-template-columns: minmax(0, 1fr) 440px;
   gap: 44px;
-  align-items: end;
+  align-items: stretch;
+}
+
+.band-left {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 28px;
 }
 
 .tasks .frame {
   opacity: 0.34;
+}
+
+/* Nanoleaf is a shallow chip/status strip, not a bright card. */
+.nanoleaf {
+  min-height: 112px;
+  padding: 2px 0 0;
+}
+
+.nanoleaf-lights {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.nanoleaf-light {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 126px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  border-left: 1px solid var(--line-dim);
+  padding-left: 14px;
+}
+
+.nanoleaf-icon {
+  width: 126px;
+  height: 66px;
+  overflow: visible;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linejoin: bevel;
+  color: var(--muted);
+}
+
+.nanoleaf-light.on .nanoleaf-icon {
+  color: var(--fg-2);
+  stroke-opacity: 0.8;
+}
+
+.nanoleaf-light.off .nanoleaf-icon {
+  color: var(--muted);
+  stroke-opacity: 0.56;
+}
+
+.nanoleaf-panel {
+  vector-effect: non-scaling-stroke;
+}
+
+.nanoleaf-meta {
+  min-width: 0;
+  text-transform: uppercase;
+}
+
+.nanoleaf-name {
+  overflow: hidden;
+  color: var(--fg-2);
+  font-family: var(--pixel);
+  font-size: 15px;
+  letter-spacing: 0.12em;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nanoleaf-state {
+  padding-top: 7px;
+  color: var(--muted);
+  font-size: 18px;
+  letter-spacing: 0.2em;
+}
+
+.nanoleaf-light.on .nanoleaf-state {
+  color: var(--fg-3);
 }
 
 /* Chip cards: rectangular tile, code-letter square on the left, dim lines. */
