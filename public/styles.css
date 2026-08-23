@@ -1311,10 +1311,80 @@ body.night #hermy-dialogue {
   letter-spacing: 0.12em;
   color: var(--fg-2);
   opacity: 0.6;
+/* ------------------------------------------------------------ boot / jack-in
+
+   One-shot kiosk boot: black glass, the phrase types centered in Press Start
+   2P (dim cyan), a single horizontal line-work sweep expands from center, then
+   the overlay fades to reveal the dashboard underneath. Under
+   prefers-reduced-motion app.js removes this overlay before it ever animates,
+   so the dashboard is simply there. */
+
+#boot {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  transition: opacity 500ms ease;
+}
+
+#boot.done {
+  opacity: 0;
+}
+
+#boot.gone {
+  display: none;
+}
+
+.boot-text {
+  font-family: var(--pixel);
+  font-size: 28px;
+  line-height: 1.4;
+  letter-spacing: 2px;
+  color: var(--fg-2); /* dim cyan */
+  text-align: center;
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
+.boot-sweep {
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  width: min(70vw, 760px);
+  height: 0;
+  border-top: 2px solid var(--line);
+  transform: translate(-50%, -50%) scaleX(0);
+  transform-origin: center;
+  opacity: 0;
+}
+
+.boot-sweep.run {
+  animation: boot-sweep 360ms ease-out forwards;
+}
+
+@keyframes boot-sweep {
+  0% {
+    transform: translate(-50%, -50%) scaleX(0);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate(-50%, -50%) scaleX(1);
+    opacity: 0.85;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .vinyl-record {
     animation: none;
+  }
+  #boot {
+    transition: none;
   }
 }
