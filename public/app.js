@@ -273,7 +273,6 @@
       }
     }
     if (shown === 0) return;
-    list.firstChild.classList.add('sel');
     target.append(list);
     const more = (data.more ?? 0) + hidden;
     if (more > 0) target.append(el('div', 'more', `+${more} more`));
