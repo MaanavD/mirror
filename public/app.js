@@ -635,6 +635,43 @@
     });
   }
 
+  // ------------------------------------------------------- hermy avatar
+
+  // 12-frame sheet, 32px cells shown 4x: row 0 idle, row 1 look, row 2 talk.
+  // Idle breathes slowly; every so often Hermy glances around. Talk row is
+  // reserved for the dialogue box.
+  const hermy = q('#hermy');
+
+  function hermyRun() {
+    if (!hermy) return;
+    const FRAME = 128;
+    let row = 0;
+    let col = 0;
+    let seq = null; // remaining one-shot frames [row, col]
+    const paint = () => {
+      hermy.style.backgroundPosition = `-${col * FRAME}px -${row * FRAME}px`;
+    };
+    const tick = () => {
+      if (seq && seq.length) {
+        [row, col] = seq.shift();
+        if (!seq.length) seq = null;
+      } else {
+        row = 0;
+        col = (col + 1) % 4;
+      }
+      paint();
+      setTimeout(tick, seq ? 340 : 700);
+    };
+    const glance = () => {
+      // look-around one-shot: sweep row 1 out and back
+      seq = [[1, 0], [1, 1], [1, 2], [1, 3], [1, 2], [1, 1], [1, 0]];
+      setTimeout(glance, 18_000 + Math.random() * 26_000);
+    };
+    paint();
+    setTimeout(tick, 700);
+    setTimeout(glance, 9_000 + Math.random() * 9_000);
+  }
+
   // ------------------------------------------------------- burn-in shift
 
   const OFFSETS = [
@@ -661,6 +698,7 @@
   hydrate();
   pollOnce();
   connect();
+  hermyRun();
   setInterval(shift, BURN_IN_MS);
 
   // A kiosk left running for weeks accumulates renderer cruft; a nightly

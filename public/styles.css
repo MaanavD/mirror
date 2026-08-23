@@ -549,6 +549,33 @@ body.off #root {
   gap: 28px;
 }
 
+.band-right {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.band-right .tasks {
+  align-self: stretch;
+}
+
+/* Hermy.EXE avatar: one 32px cell of the sheet, scaled 4x, hard pixels.
+   Kept dim so the sprite reads as a resident, not a lamp. */
+.hermy {
+  width: 128px;
+  height: 128px;
+  margin-left: 10px;
+  background-image: url('/hermy_sprites.png');
+  background-repeat: no-repeat;
+  background-size: 512px 384px;
+  background-position: 0 0;
+  image-rendering: pixelated;
+  opacity: 0.82;
+}
+
 .tasks .frame {
   opacity: 0.34;
 }
