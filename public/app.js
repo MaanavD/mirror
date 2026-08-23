@@ -17,6 +17,16 @@
   const BURN_IN_MS = 10 * 60_000;
   const FADE_MS = 900;
 
+  // Imminent-event alert: a timed event drawing near gets lifted out of the
+  // agenda as a HUD bracket for one beat. Each event fires once per session.
+  const IMMINENT_MS = 10 * 60_000; // within 10 min → full detach alert
+  const URGENT_MS = 60_000; // under 60 s → reserved shake instead
+  const HOLD_MS = 8_000; // bracket holds for 8 s, then returns
+  const ALERT_TOP = 520; // just below the top band, well above screen centre
+  const ALERT_SCALE = 1.3;
+  const firedAlerts = new Set(); // session-scoped guard
+  let latestCalendar = null; // last calendar payload we rendered
+
   const root = document.getElementById('root');
   const dot = document.getElementById('dot');
   const clockEl = document.getElementById('clock');
@@ -212,6 +222,8 @@
           .filter(Boolean)
           .join(' '),
       );
+      li.dataset.eventId = event.id;
+      li.dataset.eventStart = event.start;
       li.append(el('span', 't', event.timeLabel));
       li.append(el('span', 'n', event.title));
       list.append(li);
@@ -245,6 +257,111 @@
     if (!data || data.configured === false) return;
     renderDay(today, data.today, data.todayMore, { cursor: true });
     renderDay(tomorrow, data.tomorrow, data.tomorrowMore);
+  }
+
+  // ------------------------------------------------- imminent-event alert
+
+  // A fixed clone of an agenda row is lifted to the centre-top, framed by four
+  // cyan HUD corner brackets, micro-pulses twice, holds, then flies home.
+  function findRow(id) {
+    const rows = document.querySelectorAll('#cal-today li[data-event-id]');
+    for (const row of rows) if (row.dataset.eventId === id) return row;
+    return null;
+  }
+
+  function buildAlertClone(event) {
+    const clone = el('div', 'hud-alert');
+    clone.dataset.eventId = event.id;
+    for (const corner of ['tl', 'tr', 'bl', 'br']) clone.append(el('span', `hud-corner ${corner}`));
+    const rowEl = el('div', 'hud-row');
+    rowEl.append(el('span', 't', event.timeLabel));
+    rowEl.append(el('span', 'n', event.title));
+    clone.append(rowEl);
+    return clone;
+  }
+
+  function placeFixed(clone, x, y, scale, width) {
+    clone.style.left = '0px';
+    clone.style.top = '0px';
+    clone.style.width = `${width}px`;
+    clone.style.transformOrigin = 'center center';
+    clone.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+  }
+
+  function fireDetach(event) {
+    const row = findRow(event.id);
+    const clone = buildAlertClone(event);
+    if (row) row.classList.add('detaching');
+    clone._row = row;
+    document.body.append(clone);
+
+    const rect = row ? row.getBoundingClientRect()
+      : { left: 540 - 200, top: ALERT_TOP, width: 400, height: 40 };
+    const w = rect.width || 400;
+    const h = rect.height || 40;
+
+    // Start exactly where the row sits, then transition to centre-top.
+    placeFixed(clone, rect.left, rect.top, 1, w);
+    void clone.offsetWidth; // commit the start frame before transitioning
+
+    const cx = 540;
+    const cy = ALERT_TOP + (ALERT_SCALE * h) / 2;
+    const timers = [];
+
+    const arrive = setTimeout(() => {
+      clone.classList.add('show'); // draw the HUD brackets
+      clone.style.transition = 'transform 0.6s cubic-bezier(.2,.8,.2,1)';
+      clone.style.transform = `translate(${cx - w / 2}px, ${cy - h / 2}px) scale(${ALERT_SCALE})`;
+    }, 16);
+
+    const pulse = setTimeout(() => clone.classList.add('pulse'), 16 + 600);
+    const back = setTimeout(() => returnClone(clone, event), 16 + 600 + 900 + HOLD_MS);
+    timers.push(arrive, pulse, back);
+    clone._timers = timers;
+  }
+
+  function returnClone(clone, event) {
+    const row = clone._row || findRow(event.id);
+    clone.classList.remove('pulse');
+    if (row) row.classList.remove('detaching');
+    if (!row) {
+      // Event left the visible window: just dissolve the clone.
+      clone.style.transition = 'opacity 0.4s ease';
+      clone.style.opacity = '0';
+      setTimeout(() => clone.remove(), 420);
+      return;
+    }
+    const r = row.getBoundingClientRect();
+    clone.style.transition = 'transform 0.5s cubic-bezier(.2,.8,.2,1)';
+    clone.style.transform = `translate(${r.left}px, ${r.top}px) scale(1)`;
+    setTimeout(() => clone.remove(), 540);
+  }
+
+  // Reserved urgency: a sub-60-second event gets a tight ±2px shake on its row
+  // instead of the full detach — no cloning, no lingering motion.
+  function fireShake(event) {
+    const row = findRow(event.id);
+    if (!row) return;
+    row.classList.remove('shake');
+    void row.offsetWidth;
+    row.classList.add('shake');
+    row.addEventListener('animationend', () => row.classList.remove('shake'), { once: true });
+  }
+
+  function checkImminent() {
+    if (!latestCalendar || document.hidden || document.body.classList.contains('off')) return;
+    const now = Date.now();
+    for (const event of latestCalendar.today ?? []) {
+      if (event.allDay || event.past) continue;
+      const startMs = Date.parse(event.start);
+      if (Number.isNaN(startMs)) continue;
+      const msUntil = startMs - now;
+      if (msUntil <= 0 || msUntil > IMMINENT_MS) continue;
+      if (firedAlerts.has(event.id)) continue;
+      firedAlerts.add(event.id);
+      if (msUntil < URGENT_MS) fireShake(event);
+      else fireDetach(event);
+    }
   }
 
   // Sparse on purpose: the server caps at 8 visible, the glass shows fewer.
@@ -551,6 +668,10 @@
     for (const name of Object.keys(bodies)) update(name, modules[name]?.data ?? null);
     renderNowPlaying(modules.spotify?.data ?? null);
 
+    const cal = modules.calendar?.data ?? null;
+    latestCalendar = cal && cal.configured !== false ? cal : null;
+    checkImminent();
+
     const stale = Object.values(modules).some((entry) => entry && entry.stale);
     dot.classList.toggle('on', stale);
 
@@ -786,6 +907,7 @@
   maybeGreet();
   nightWatch();
   setInterval(shift, BURN_IN_MS);
+  setInterval(checkImminent, 1_000);
 
   // A kiosk left running for weeks accumulates renderer cruft; a nightly
   // reload while the panel is dark costs nothing.
