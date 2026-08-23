@@ -33,9 +33,9 @@
   // -------------------------------------------------------------- clock
 
   const timeFmt = new Intl.DateTimeFormat(undefined, {
-    hour: '2-digit',
+    hour: 'numeric',
     minute: '2-digit',
-    hourCycle: 'h23',
+    hour12: true,
   });
   const dateFmt = new Intl.DateTimeFormat(undefined, {
     weekday: 'long',

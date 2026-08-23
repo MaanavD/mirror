@@ -70,10 +70,12 @@ export function localDateKey(date, timeZone) {
   return `${p.year}-${pad(p.month)}-${pad(p.day)}`;
 }
 
-/** "HH:MM" 24h in `timeZone`. */
+/** "H:MM am/pm" 12h in `timeZone`. */
 export function localTimeLabel(date, timeZone) {
   const p = zonedParts(date, timeZone);
-  return `${pad(p.hour)}:${pad(p.minute)}`;
+  const suffix = p.hour < 12 ? 'am' : 'pm';
+  const h12 = p.hour % 12 || 12;
+  return `${h12}:${pad(p.minute)}${suffix}`;
 }
 
 export function formatOffset(minutes) {
