@@ -13,9 +13,6 @@ import weatherModule from './weather.js';
  * Registration order = order of the keys in /api/state.modules.
  * To add a module see DESIGN.md ("adding a module").
  */
-export const modules = [weatherModule, astroModule, calendarModule, quoteModule, notionModule, nanoleafModule, spotifyModule];
-export const modules = [weatherModule, calendarModule, leavebyModule, quoteModule, notionModule, nanoleafModule, spotifyModule];
-export const modules = [weatherModule, aqiModule, calendarModule, quoteModule, notionModule, nanoleafModule, spotifyModule];
-export const modules = [weatherModule, calendarModule, quoteModule, notionModule, nanoleafModule, spotifyModule, newsModule];
+export const modules = [weatherModule, astroModule, aqiModule, calendarModule, leavebyModule, quoteModule, notionModule, nanoleafModule, spotifyModule, newsModule];
 
 export default modules;
