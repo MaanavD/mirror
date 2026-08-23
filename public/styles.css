@@ -568,7 +568,7 @@ body.off #root {
 .nanoleaf-light {
   min-width: 0;
   display: grid;
-  grid-template-columns: 126px minmax(0, 1fr);
+  grid-template-columns: 52px minmax(0, 1fr);
   gap: 16px;
   align-items: center;
   border-left: 1px solid var(--line-dim);
@@ -576,8 +576,8 @@ body.off #root {
 }
 
 .nanoleaf-icon {
-  width: 126px;
-  height: 66px;
+  width: 52px;
+  height: 52px;
   overflow: visible;
   fill: none;
   stroke: currentColor;
@@ -606,13 +606,11 @@ body.off #root {
 }
 
 .nanoleaf-name {
-  overflow: hidden;
   color: var(--fg-2);
   font-family: var(--pixel);
   font-size: 15px;
   letter-spacing: 0.12em;
   line-height: 1.35;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 

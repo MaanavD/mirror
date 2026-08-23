@@ -279,20 +279,16 @@
     if (more > 0) target.append(el('div', 'more', `+${more} more`));
   }
 
-  // Nanoleaf Shapes read as two tiny BN chip clusters. The outlines stay
-  // visible when off; an on light only adds a restrained color wash inside the
-  // hexes/triangles so the OLED mirror keeps its black budget.
+  // Each Nanoleaf light reads as ONE hex glyph (BN chip icon). Outline stays
+  // visible when off; an on light only adds a restrained color wash so the
+  // OLED mirror keeps its black budget.
   const NANOFORMS = [
-    { kind: 'hex', points: '8,20 17,14 26,20 26,31 17,37 8,31' },
-    { kind: 'hex', points: '31,12 40,6 49,12 49,23 40,29 31,23' },
-    { kind: 'tri', points: '34,39 46,32 52,45' },
-    { kind: 'hex', points: '56,22 65,16 74,22 74,33 65,39 56,33' },
-    { kind: 'tri', points: '80,13 92,20 80,27' },
+    { kind: 'hex', points: '26,6 44,16 44,36 26,46 8,36 8,16' },
   ];
 
   function nanoleafIcon(light) {
     const svg = document.createElementNS(SVG_NS, 'svg');
-    svg.setAttribute('viewBox', '0 0 100 52');
+    svg.setAttribute('viewBox', '0 0 52 52');
     svg.setAttribute('class', 'nanoleaf-icon');
     svg.setAttribute('aria-hidden', 'true');
 
