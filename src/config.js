@@ -95,6 +95,13 @@ export const config = {
     rotateHour: 4,
   },
 
+  spotify: {
+    clientId: str('SPOTIFY_CLIENT_ID'),
+    clientSecret: str('SPOTIFY_CLIENT_SECRET'),
+    redirectUri: str('SPOTIFY_REDIRECT_URI'),
+    refreshToken: str('SPOTIFY_REFRESH_TOKEN'),
+  },
+
   display: {
     token: str('DISPLAY_TOKEN'),
     piAgentUrl: str('PI_AGENT_URL').replace(/\/+$/, ''),
@@ -122,6 +129,7 @@ export const config = {
     calendarMs: 20 * MINUTE,
     notionMs: 20 * MINUTE,
     quoteMs: 36 * 60 * MINUTE,
+    spotifyMs: 2 * MINUTE,
   },
 };
 

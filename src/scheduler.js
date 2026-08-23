@@ -33,6 +33,7 @@ export class Scheduler {
     for (const name of this.#store.moduleNames) {
       const mod = this.#store.module(name);
       if (typeof mod.nextRunAt === 'function') this.#scheduleWallClock(mod);
+      else if (typeof mod.refreshMsFor === 'function') this.#scheduleAdaptive(mod);
       else if (Number.isFinite(mod.refreshMs)) this.#scheduleInterval(mod);
     }
 
@@ -53,6 +54,22 @@ export class Scheduler {
         this.#store.refresh(mod.name, { reason: 'interval' }).catch(() => {});
       }, mod.refreshMs + jitter),
     );
+  }
+
+  #scheduleAdaptive(mod) {
+    const schedule = () => {
+      if (!this.#running) return;
+      const delay = Math.max(1_000, Number(mod.refreshMsFor({
+        data: this.#store.snapshot().modules[mod.name]?.data,
+      })) || 30_000);
+      const timer = setTimeout(async () => {
+        this.#timers.delete(timer);
+        await this.#store.refresh(mod.name, { reason: 'adaptive' }).catch(() => {});
+        if (this.#running) schedule();
+      }, delay);
+      this.#track(timer);
+    };
+    schedule();
   }
 
   #scheduleWallClock(mod) {

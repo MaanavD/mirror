@@ -726,3 +726,155 @@ body.off #root {
 .dot.on {
   opacity: 0.3;
 }
+
+/* ------------------------------------------------------ Spotify vinyl state */
+
+/* The mount is removed from the layout when idle so it never steals space from
+   the top/bottom bands. When active it floats over the approved black centre. */
+#now-playing.mount:not(:empty) {
+  position: fixed;
+  z-index: 10;
+  left: 50%;
+  top: 64%;
+  width: min(82vw, 720px);
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  transform: translate3d(-50%, -50%, 0);
+}
+
+.vinyl-overlay {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: var(--fg);
+  opacity: 0.86;
+  transition: opacity 1400ms ease;
+}
+
+.vinyl-overlay.is-expiring {
+  opacity: 0;
+}
+
+.vinyl-kicker {
+  margin-bottom: 18px;
+  font-family: var(--pixel);
+  font-size: 15px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--fg-4);
+}
+
+.vinyl-record {
+  position: relative;
+  width: min(45vw, 500px);
+  aspect-ratio: 1;
+  border: 2px solid rgba(96, 120, 216, 0.54);
+  border-radius: 50%;
+  background-color: #000;
+  background-image:
+    repeating-radial-gradient(circle, transparent 0 7px, rgba(96, 150, 170, 0.12) 8px 9px),
+    radial-gradient(circle, transparent 0 20%, rgba(16, 248, 248, 0.18) 20.3% 20.7%, transparent 21% 30%, rgba(96, 120, 216, 0.18) 30.3% 30.7%, transparent 31% 43%, rgba(96, 150, 170, 0.12) 43.3% 43.7%, transparent 44%);
+  box-shadow: 0 0 0 8px rgba(96, 120, 216, 0.08), inset 0 0 0 1px rgba(216, 248, 255, 0.18);
+  transform: translateZ(0);
+  animation: vinyl-spin 3.2s linear infinite;
+  will-change: transform;
+}
+
+.vinyl-record::before,
+.vinyl-record::after {
+  content: '';
+  position: absolute;
+  inset: 5%;
+  border: 1px solid rgba(216, 248, 255, 0.1);
+  border-radius: 50%;
+}
+
+.vinyl-record::after {
+  inset: 47%;
+  border-color: rgba(216, 248, 255, 0.55);
+  box-shadow: 0 0 0 5px #000, 0 0 0 6px rgba(16, 248, 248, 0.28);
+}
+
+.vinyl-art {
+  position: absolute;
+  inset: 22%;
+  z-index: 1;
+  width: 56%;
+  height: 56%;
+  border: 2px solid rgba(216, 248, 255, 0.55);
+  border-radius: 50%;
+  object-fit: cover;
+  background: #000;
+}
+
+.vinyl-overlay.is-paused .vinyl-record {
+  animation-play-state: paused;
+  opacity: 0.72;
+}
+
+@keyframes vinyl-spin {
+  from {
+    transform: translateZ(0) rotate(0deg);
+  }
+  to {
+    transform: translateZ(0) rotate(360deg);
+  }
+}
+
+.vinyl-meta {
+  width: min(76vw, 620px);
+  margin-top: 26px;
+  text-align: center;
+}
+
+.vinyl-title {
+  overflow: hidden;
+  font-family: var(--pixel);
+  font-size: 24px;
+  line-height: 1.35;
+  letter-spacing: 0.08em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  color: var(--fg);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.vinyl-artists {
+  overflow: hidden;
+  margin-top: 9px;
+  font-size: 27px;
+  letter-spacing: 0.1em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-2);
+}
+
+.vinyl-progress {
+  width: 64%;
+  height: 4px;
+  margin: 20px auto 0;
+  border: 1px solid rgba(96, 150, 170, 0.25);
+  transform: skewX(-18deg);
+}
+
+.vinyl-progress span {
+  display: block;
+  height: 100%;
+  min-width: 1px;
+  background: rgba(16, 248, 248, 0.48);
+  transition: width 900ms linear;
+}
+
+.vinyl-overlay.is-paused .vinyl-progress span {
+  background: rgba(96, 120, 216, 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vinyl-record {
+    animation: none;
+  }
+}
