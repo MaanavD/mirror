@@ -494,6 +494,8 @@
   function renderLeaveby(target, data) {
     if (!data || !data.eventTitle || !data.leaveBy) return;
     target.append(el('span', null, `\u25B6 LEAVE BY ${data.leaveBy} \u00B7 ${data.driveMin} MIN DRIVE`));
+  }
+
   function renderAqi([target], data) {
     if (!data || data.aqi === null || data.aqi === undefined) return;
     if (data.aqi < 60) return;
@@ -501,6 +503,8 @@
     chip.append(el('span', 'aqi-label', `AQI ${data.aqi}`));
     chip.append(el('span', 'aqi-level', data.level.replace('-', ' ')));
     target.append(chip);
+  }
+
   // Net feed: one HN headline at a time, cross-fading every 20s (no scrolling
   // marquee). The rotation is module-level so a re-render only resets it when
   // the payload actually changes (the `update` guard handles that upstream).
