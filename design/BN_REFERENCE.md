@@ -7,7 +7,7 @@
 - **BN1–2 / Original PET:** The pause terminal is a utilitarian list of destinations: Folder, Library, MegaMan status, Email, Items, Network/link functions, and Save. The Folder is a 30-chip inventory; email entries expose a clear `NEW` state. This is the strongest model for a mirror’s left-rail navigation: one selected row, one active state, no app-card clutter.[21][12]
 - **BN3 / Plug-in PET:** A dedicated terminal screen makes the Navi the hero: a large MegaMan portrait/status area with compact utility icons around it. The series’ BN3 screenshot set explicitly includes PET, Folder, Status, Sub Chip, HP Memory, and Navi Customizer screens.[15][16][17] Reference image (240×160): https://static.wikitide.net/megamanwiki/6/6b/MMBN3BPETScreen.png
 - **BN4 / Advanced PET:** The PET screen becomes a saturated blue/green/pink “skin” around the same functional information architecture; the screenshot set includes all three color variants and a Folder screen.[30] Blue reference (240×160): https://static.wikitide.net/megamanwiki/3/39/MMBN4_PET_Screen_%28Blue%29.png
-- **BN5:** Keep the PET as a command surface, not a desktop: folders, Navi/operation data, terminals, and battle state. The screenshot index includes Progress/Team folders, DS PET, jack-in, and Liberation Mission views.[31] Chip art is available as standard, Navi, Mega, Giga, and Dark sheets.[4][5][33]
+- **BN5:** Keep the PET as a command surface, not a desktop: folders, Navi/operation data, terminals, and battle state. The screenshot index includes Progress/Team folders, DS PET, jack-in, and Liberation Mission views.[31] Chip art is available as standard, Navi, Mega, Giga, and Dark sheets.[4][5]
 - **BN6 / Link PET direction:** The same terminal vocabulary persists, but the presentation is more icon-and-color coded. Spriters references separate Main Menu, Subchip Menu, Email Menu, and Chip Images—useful as a component inventory.[6][7][8]
 - **Recommended mirror composition:** A slim “PET header” (Navi name / connection status), a dominant status readout, and a 2-column or vertical list of Folder / Mail / Status / Net. Keep the navigation rail visibly subordinate to the Navi readout.
 
@@ -17,7 +17,7 @@
 - **Typewriter reveal:** Reveal text character-by-character, with a small advance/caret affordance at the end. The game script’s short PET prompts, mail alerts, and operator/Navi exchanges make the intended rhythm clear even though timing is not documented in a technical spec.[23]
 - **Beep cadence:** Use one short, quiet digital tick per character (or per small character cluster), slightly faster for routine text; pause on punctuation and stop on a page break. This is a reconstruction guideline, not a measured original audio timing—keep it optional on an always-on mirror.
 - **Portrait box at side:** Use a 1-bit or 2-tone bust silhouette, 48–96 px equivalent at 1080×1920, with a nameplate in the portrait frame. Side placement preserves a clear reading column and survives the mirror’s line-only constraint.
-- **“!!” / high urgency:** Battle Network’s signature operator call is literally “Jack in!! MegaMan…”; exclamation count varies by game.[35] For a mirror, render `!!` as a two-frame high-contrast glyph pulse beside the sender/nameplate, not as a full-screen white flash. The screenshot galleries are the visual reference set for alerts, jack-in frames, and game-over frames.[15][30][31]
+- **“!!” / high urgency:** Battle Network’s signature operator call is literally “Jack in!! MegaMan…”; exclamation count varies by game.[35] For a mirror, render `!!` as a two-frame high-contrast glyph pulse beside the sender/nameplate, not as a full-screen white flash. The screenshot galleries are the visual reference set for alerts, jack-in frames, and game-over frames.[15][30]
 - **Alert escalation grammar:** normal = cyan/white line frame; attention = amber header + one pulse; danger = red/orange `!!`, a brief border inversion, and a persistent “ACK”/dismiss affordance. Avoid rapid strobing: the physical mirror is viewed at close range.
 
 ## 3. Battle Chip / card anatomy
@@ -30,7 +30,7 @@
 
 ## 4. Palette observations (hex approximations)
 
-The GBA references are palette-quantized and vary by game/skin. The following values are sampled/rounded from Spriters sheets and accessible screenshot references; use them as design tokens, not colorimetry.[2][4][5] The screenshot references are cross-checks, not colorimetry.[17][18][35]
+The GBA references are palette-quantized and vary by game/skin. The following values are sampled/rounded from Spriters sheets and accessible screenshot references; use them as design tokens, not colorimetry.[2][4][5]
 
 | Role | Approx. tokens | Use |
 |---|---|---|
@@ -107,5 +107,4 @@ The GBA references are palette-quantized and vary by game/skin. The following va
 [29] https://developers.google.com/fonts — Google Fonts licensing
 [30] https://megaman.fandom.com/wiki/Category:Mega_Man_Battle_Network_4_screenshots — MMKB — BN4 screenshot category
 [31] https://megaman.fandom.com/wiki/Category:Mega_Man_Battle_Network_5_screenshots — MMKB — BN5 screenshot category
-[33] https://www.spriters-resource.com/game_boy_advance/mmbn5/asset/10724 — Spriters Resource — BN5 Navi Chips
 [35] https://megaman.miraheze.org/wiki/File:MMBN4_PET_Screen_%28Blue%29.png — Miraheze BN4 blue PET encoded
