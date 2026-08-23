@@ -42,6 +42,17 @@ app.post('/api/display/off', requireDisplayToken(config), async (_req, res) => {
   res.json(await display.set(false, { source: 'api' }));
 });
 
+// Hermy.EXE dialogue: push a short output-only message to the mirror.
+// Reuses the display token so nothing on the open tailnet can make the
+// mirror talk. Body: { text, holdMs? }.
+app.post('/api/say', requireDisplayToken(config), (req, res) => {
+  const text = String(req.body?.text ?? '').trim().slice(0, 220);
+  if (!text) return res.status(400).json({ error: 'text required' });
+  const holdMs = Math.min(Math.max(Number(req.body?.holdMs) || 0, 0), 60_000);
+  events.broadcast('say', { text, holdMs });
+  res.json({ ok: true, clients: events.size });
+});
+
 // Operational view; deliberately not under /api so the state blob stays exactly
 // the shape the frontend contract promises.
 app.get('/healthz', (_req, res) => {

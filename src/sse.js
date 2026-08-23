@@ -45,6 +45,17 @@ export function createEventStream({ store, heartbeatMs = 20_000, log = createLog
     get size() {
       return clients.size;
     },
+    /** Push a one-off named event (not the state blob) to every open client. */
+    broadcast(event, payload) {
+      const frame = `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
+      for (const client of clients) {
+        try {
+          client.res.write(frame);
+        } catch {
+          // dying socket: its close handler will reap it
+        }
+      }
+    },
     closeAll() {
       for (const client of clients) {
         try {

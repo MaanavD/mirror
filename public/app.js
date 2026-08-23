@@ -627,6 +627,14 @@
         // malformed frame: next one will do
       }
     });
+    source.addEventListener('say', (event) => {
+      try {
+        const { text, holdMs } = JSON.parse(event.data);
+        hermySay(text, holdMs);
+      } catch {
+        // malformed say frame: ignore
+      }
+    });
     source.addEventListener('error', () => {
       source.close();
       startPolling();
@@ -638,9 +646,10 @@
   // ------------------------------------------------------- hermy avatar
 
   // 12-frame sheet, 32px cells shown 4x: row 0 idle, row 1 look, row 2 talk.
-  // Idle breathes slowly; every so often Hermy glances around. Talk row is
-  // reserved for the dialogue box.
+  // Idle breathes slowly; every so often Hermy glances around. Talk row runs
+  // while the dialogue box is typing.
   const hermy = q('#hermy');
+  let hermyTalking = false;
 
   function hermyRun() {
     if (!hermy) return;
@@ -652,7 +661,10 @@
       hermy.style.backgroundPosition = `-${col * FRAME}px -${row * FRAME}px`;
     };
     const tick = () => {
-      if (seq && seq.length) {
+      if (hermyTalking) {
+        row = 2;
+        col = (col + 1) % 4;
+      } else if (seq && seq.length) {
         [row, col] = seq.shift();
         if (!seq.length) seq = null;
       } else {
@@ -660,16 +672,73 @@
         col = (col + 1) % 4;
       }
       paint();
-      setTimeout(tick, seq ? 340 : 700);
+      setTimeout(tick, hermyTalking ? 220 : seq ? 340 : 700);
     };
     const glance = () => {
-      // look-around one-shot: sweep row 1 out and back
-      seq = [[1, 0], [1, 1], [1, 2], [1, 3], [1, 2], [1, 1], [1, 0]];
+      if (!hermyTalking) {
+        // look-around one-shot: sweep row 1 out and back
+        seq = [[1, 0], [1, 1], [1, 2], [1, 3], [1, 2], [1, 1], [1, 0]];
+      }
       setTimeout(glance, 18_000 + Math.random() * 26_000);
     };
     paint();
     setTimeout(tick, 700);
     setTimeout(glance, 9_000 + Math.random() * 9_000);
+  }
+
+  // ---------------------------------------------------- hermy dialogue box
+
+  // Output-only BN message box: pixel portrait left, typewriter text right.
+  // Triggered by the server's `say` SSE event; auto-dismisses. No input, no
+  // log, no sound (speakers belong to Spotify).
+  const dialogueMount = q('#hermy-dialogue');
+  let sayTimers = [];
+
+  function hermySay(text, holdMs = 0) {
+    if (!dialogueMount || !text) return;
+    for (const t of sayTimers) clearTimeout(t);
+    sayTimers = [];
+    dialogueMount.textContent = '';
+
+    const box = el('div', 'say-box');
+    const portrait = el('div', 'say-portrait');
+    const body = el('p', 'say-text');
+    box.append(portrait, body);
+    dialogueMount.append(box);
+
+    hermyTalking = true;
+    const chars = [...text];
+    let i = 0;
+    const TYPE_MS = 34;
+    const step = () => {
+      body.textContent = chars.slice(0, ++i).join('');
+      if (i < chars.length) {
+        sayTimers.push(setTimeout(step, TYPE_MS));
+      } else {
+        hermyTalking = false;
+        const hold = holdMs || Math.min(4_000 + chars.length * 70, 20_000);
+        sayTimers.push(setTimeout(() => {
+          box.classList.add('fading');
+          sayTimers.push(setTimeout(() => { dialogueMount.textContent = ''; }, 900));
+        }, hold));
+      }
+    };
+    sayTimers.push(setTimeout(step, 350));
+  }
+
+  // Morning greeting: once per day, first paint between 5am and 11am.
+  function maybeGreet() {
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    if (now.getHours() < 5 || now.getHours() >= 11) return;
+    try {
+      if (localStorage.getItem('hermy-greeted') === today) return;
+      localStorage.setItem('hermy-greeted', today);
+    } catch {
+      // storage unavailable: greet anyway
+    }
+    const day = now.toLocaleDateString('en-US', { weekday: 'long' });
+    hermySay(`Good morning, Maanav! ${day}, jacked in and ready. Let's make it count.`);
   }
 
   // ------------------------------------------------------- burn-in shift
@@ -699,6 +768,7 @@
   pollOnce();
   connect();
   hermyRun();
+  maybeGreet();
   setInterval(shift, BURN_IN_MS);
 
   // A kiosk left running for weeks accumulates renderer cruft; a nightly

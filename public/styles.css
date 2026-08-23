@@ -752,6 +752,63 @@ body.off #root {
   opacity: 0.3;
 }
 
+/* ------------------------------------------------------ Hermy dialogue box */
+
+/* BN message box: fixed low-center overlay, line-work frame, portrait left,
+   typewriter text right. Output-only; fades itself out. */
+#hermy-dialogue.mount:not(:empty) {
+  position: fixed;
+  z-index: 12;
+  left: 50%;
+  bottom: 27%;
+  width: min(78vw, 760px);
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.say-box {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 22px;
+  align-items: center;
+  width: 100%;
+  padding: 22px 26px;
+  border: 1px solid var(--line);
+  outline: 1px solid var(--line-dim);
+  outline-offset: 5px;
+  background: rgba(0, 0, 0, 0.85);
+  opacity: 1;
+  transition: opacity var(--fade) ease;
+}
+
+.say-box.fading {
+  opacity: 0;
+}
+
+/* Portrait: the talk-row first cell of the sprite sheet at 3x. */
+.say-portrait {
+  width: 96px;
+  height: 96px;
+  background-image: url('/hermy_sprites.png');
+  background-repeat: no-repeat;
+  background-size: 384px 288px;
+  background-position: 0 -192px;
+  image-rendering: pixelated;
+  opacity: 0.95;
+}
+
+.say-text {
+  margin: 0;
+  font-family: var(--pixel);
+  font-size: 19px;
+  line-height: 1.9;
+  color: var(--fg-2);
+  text-transform: lowercase;
+  letter-spacing: 0.04em;
+}
+
 /* ------------------------------------------------------ Spotify vinyl state */
 
 /* The mount is removed from the layout when idle so it never steals space from
