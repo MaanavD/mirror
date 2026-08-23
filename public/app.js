@@ -33,6 +33,7 @@
     quote: [q('#quote .body')],
     notion: [q('#notion .body')],
   };
+  const nowPlayingEl = q('#now-playing');
 
   // -------------------------------------------------------------- clock
 
@@ -290,6 +291,99 @@
     notion: renderTodos,
   };
 
+  // ------------------------------------------------------ now playing
+
+  let pauseFadeTimer = null;
+  let pauseKey = null;
+  let hiddenPausedKey = null;
+  let playingKey = null;
+
+  function trackKey(track) {
+    return `${track?.name ?? ''}\\u0000${(track?.artists ?? []).join('\\u0000')}`;
+  }
+
+  function makeVinyl(data, key) {
+    const overlay = el('section', 'vinyl-overlay');
+    overlay.dataset.trackKey = key;
+    overlay.append(el('div', 'vinyl-kicker', 'now playing'));
+
+    const record = el('div', 'vinyl-record');
+    const art = document.createElement('img');
+    art.className = 'vinyl-art';
+    art.alt = '';
+    art.draggable = false;
+    if (data.track.albumArtUrl) art.src = data.track.albumArtUrl;
+    record.append(art);
+    overlay.append(record);
+
+    const meta = el('div', 'vinyl-meta');
+    meta.append(el('div', 'vinyl-title'));
+    meta.append(el('div', 'vinyl-artists'));
+    const progress = el('div', 'vinyl-progress');
+    progress.append(el('span'));
+    meta.append(progress);
+    overlay.append(meta);
+    return overlay;
+  }
+
+  function updateVinylDetails(overlay, data) {
+    overlay.classList.toggle('is-playing', Boolean(data.isPlaying));
+    overlay.classList.toggle('is-paused', !data.isPlaying);
+    overlay.querySelector('.vinyl-title').textContent = data.track.name;
+    overlay.querySelector('.vinyl-artists').textContent = (data.track.artists ?? []).join('  /  ') || 'unknown artist';
+    const ratio = data.durationMs > 0 ? Math.min(1, Math.max(0, data.progressMs / data.durationMs)) : 0;
+    overlay.querySelector('.vinyl-progress span').style.width = `${Math.round(ratio * 1000) / 10}%`;
+  }
+
+  function renderNowPlaying(data) {
+    const track = data?.track;
+    if (!track?.name || data.configured === false) {
+      clearTimeout(pauseFadeTimer);
+      pauseFadeTimer = null;
+      pauseKey = null;
+      hiddenPausedKey = null;
+      playingKey = null;
+      nowPlayingEl.replaceChildren();
+      return;
+    }
+
+    const key = trackKey(track);
+    if (data.isPlaying) {
+      clearTimeout(pauseFadeTimer);
+      pauseFadeTimer = null;
+      pauseKey = null;
+      hiddenPausedKey = null;
+    } else {
+      if (hiddenPausedKey === key) return;
+      if (pauseKey !== key) {
+        clearTimeout(pauseFadeTimer);
+        pauseKey = key;
+        pauseFadeTimer = setTimeout(() => {
+          const fading = nowPlayingEl.firstElementChild;
+          if (fading) {
+            fading.classList.add('is-expiring');
+            setTimeout(() => {
+              if (nowPlayingEl.firstElementChild === fading) nowPlayingEl.replaceChildren();
+              hiddenPausedKey = key;
+            }, 1_400);
+          } else {
+            hiddenPausedKey = key;
+          }
+          pauseFadeTimer = null;
+        }, 30_000);
+      }
+    }
+
+    let overlay = nowPlayingEl.firstElementChild;
+    if (!overlay || playingKey !== key) {
+      overlay = makeVinyl(data, key);
+      nowPlayingEl.replaceChildren(overlay);
+      playingKey = key;
+    }
+    overlay.classList.remove('is-expiring');
+    updateVinylDetails(overlay, data);
+  }
+
   // Slow cross-fade, and only when the payload actually changed.
   const signatures = {};
   const swapTimers = {};
@@ -323,6 +417,7 @@
     if (!state || typeof state !== 'object') return;
     const modules = state.modules ?? {};
     for (const name of Object.keys(bodies)) update(name, modules[name]?.data ?? null);
+    renderNowPlaying(modules.spotify?.data ?? null);
 
     const stale = Object.values(modules).some((entry) => entry && entry.stale);
     dot.classList.toggle('on', stale);
