@@ -4,48 +4,69 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=1080, initial-scale=1" />
     <meta name="color-scheme" content="dark" />
-    <title>mirror</title>
+    <title>hermy.exe</title>
+    <!-- BN pixel faces (design/BN_REFERENCE.md §5). The kiosk is online for its
+         data modules anyway; offline this link fails silently and the local()
+         sources / monospace stack in styles.css take over. No FOIT: swap. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap"
+    />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <!-- Layout is fixed at 1080x1920 portrait. Content is anchored top / left
          edge / bottom; the tall `.void` row keeps the centre of the glass empty
-         for the viewer's face. See DESIGN.md. -->
+         for the viewer's face. See DESIGN.md and design/BN_REFERENCE.md. -->
     <main id="root">
-      <header class="masthead">
-        <div class="kicker">
+      <!-- PET header: Navi nameplate + net location. The status square is the
+           only always-on cyan element. -->
+      <header class="pet-head">
+        <div class="navi brackets">
+          <span class="status-dot"></span>
+          <span class="navi-name">hermy.exe</span>
+        </div>
+        <div class="net">
           <span>seattle</span>
+          <span class="sep">/</span>
           <span id="week"></span>
         </div>
-        <!-- Clock is client-side only: it renders before, and without, any network. -->
-        <div id="clock" class="clock">--:--</div>
-        <hr class="rule" />
-        <div class="dateline"><span id="date"></span></div>
       </header>
 
+      <section class="masthead">
+        <!-- Clock is client-side only: it renders before, and without, any network. -->
+        <div id="clock" class="clock">--:--</div>
+        <div class="dateline"><span id="date"></span></div>
+      </section>
+
       <section class="weather" id="weather" data-module="weather">
-        <div class="label">weather</div>
         <div class="body"></div>
       </section>
 
       <div class="void"></div>
 
+      <!-- Mount point: vinyl / now-playing overlay lands here later.
+           Empty containers collapse to nothing (see .mount:empty). -->
+      <div id="now-playing" class="mount"></div>
+
       <div class="lower">
         <section class="col" id="calendar" data-module="calendar">
           <div class="label">today</div>
-          <hr class="rule" />
           <div class="body"></div>
         </section>
 
         <section class="col" id="notion" data-module="notion">
-          <div class="label">todo</div>
-          <hr class="rule" />
+          <div class="label">tasks</div>
           <div class="body"></div>
         </section>
       </div>
 
+      <!-- Mount point: Hermy's dialogue / message box lands here later. -->
+      <div id="hermy-dialogue" class="mount"></div>
+
       <section class="quote" id="quote" data-module="quote">
-        <hr class="rule" />
         <div class="body"></div>
         <!-- Required by the ZenQuotes terms. Deliberately near-invisible. -->
         <div class="credit">inspired by ZenQuotes</div>

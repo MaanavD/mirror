@@ -1,44 +1,58 @@
 /*
-  mirror — production styling.
+  mirror — Hermy.EXE production styling.
 
-  Direction: EDITORIAL (mockup A) as the base — display serif masthead,
-  small-caps labels, hairline rules — with one borrowing from INSTRUMENT
-  (mockup B): tabular numerals everywhere numbers can change, so nothing
-  jitters between refreshes.
+  Direction: Battle Network PET / network-console (design/BN_REFERENCE.md),
+  adapted for two-way glass. BN's bright filled panels are inverted into
+  line-work: corner brackets, 1px outlines, a thin gauge — never a filled
+  rectangle.
 
   Physics, not preferences:
     · #000 is the only fill. Black glass = mirror. No greys as backgrounds.
-    · Light on black, one white + a grey ramp. No large bright areas.
+    · Light on black. Default luminance is the muted cyan ramp; #10f8f8 is
+      reserved for the single "online" signal; red/amber exist as tokens for
+      real alerts only.
     · Centre band stays empty (.void) for the viewer.
     · No scrollbars, no cursor, no focus rings, overflow hidden.
     · No spinners. Content cross-fades slowly or not at all.
+    · Motion budget: one slow breathing status square. Nothing else moves.
 */
 
 @font-face {
-  /* Playfair Display when present (or self-host into /fonts and add a url()
-     src); otherwise a system serif. The kiosk can be entirely offline. */
-  font-family: 'Mirror Display';
-  src: local('Playfair Display'), local('PlayfairDisplay-Regular'), local('Iowan Old Style'),
-    local('Palatino Linotype'), local('Georgia');
+  /* Pixel display face when installed locally (or self-hosted into /fonts
+     with a url() src); index.html also links the webfont, which sits next in
+     the stack under its real family name. */
+  font-family: 'PET Pixel';
+  src: local('Press Start 2P'), local('PressStart2P-Regular'), local('Pixelify Sans');
+  font-display: swap;
+}
+
+@font-face {
+  /* Terminal body face. VT323 / Pixel Operator if installed; the webfont
+     from index.html is the next stop, monospace the offline floor. */
+  font-family: 'PET Term';
+  src: local('VT323'), local('VT323-Regular'), local('Pixel Operator'), local('PixelOperator');
   font-display: swap;
 }
 
 :root {
-  --serif: 'Mirror Display', 'Playfair Display', 'Iowan Old Style', 'Palatino Linotype', Palatino,
-    'Times New Roman', Georgia, serif;
-  --mono: ui-monospace, 'SF Mono', 'DejaVu Sans Mono', 'Roboto Mono', Menlo, Consolas, monospace;
+  --pixel: 'PET Pixel', 'Press Start 2P', 'PET Term', 'VT323', ui-monospace, 'SF Mono',
+    'DejaVu Sans Mono', Menlo, Consolas, monospace;
+  --term: 'PET Term', 'VT323', ui-monospace, 'SF Mono', 'DejaVu Sans Mono', 'Roboto Mono', Menlo,
+    Consolas, monospace;
 
-  --fg: #ffffff;
-  --fg-2: rgba(255, 255, 255, 0.62);
-  --fg-3: rgba(255, 255, 255, 0.34);
-  --fg-4: rgba(255, 255, 255, 0.18);
-  --rule: rgba(255, 255, 255, 0.18);
+  /* BN mirror palette — hex tokens from design/BN_REFERENCE.md §4. */
+  --fg: #d8f8ff; /* main cyan-white; the one bright value */
+  --fg-2: rgba(216, 248, 255, 0.6);
+  --fg-3: rgba(168, 232, 232, 0.42);
+  --fg-4: rgba(168, 232, 232, 0.2);
+  --muted: #496070;
+  --line: rgba(96, 150, 170, 0.3);
+  --line-dim: rgba(96, 150, 170, 0.16);
+  --cyan: #10f8f8; /* "online" only — status square, stale dot */
+  --amber: #f8d018; /* notice; unused until a module earns it */
+  --alert: #f83818; /* danger; reserved */
 
-  /* The single permitted accent: a warm off-white on the clock.
-     Set to #ffffff to remove. */
-  --tint: #f5efe6;
-
-  --pad: 68px;
+  --pad: 72px;
   --fade: 900ms;
 }
 
@@ -77,9 +91,10 @@ body {
   padding: var(--pad);
   color: var(--fg);
   background: #000;
-  font-family: var(--serif);
+  font-family: var(--term);
+  font-variant-numeric: tabular-nums lining-nums;
   display: grid;
-  grid-template-rows: auto auto 1fr auto auto;
+  grid-template-rows: auto auto auto 1fr auto auto auto auto;
   /* Burn-in mitigation: app.js nudges this a few px every ~10 minutes. */
   transform: translate3d(0, 0, 0);
   transition: transform 6s ease-in-out, opacity 1600ms ease;
@@ -88,19 +103,6 @@ body {
 /* Display "off": on a two-way mirror, pure black is off. */
 body.off #root {
   opacity: 0;
-}
-
-.rule {
-  height: 1px;
-  background: var(--rule);
-  border: 0;
-}
-
-.label {
-  font-size: 21px;
-  letter-spacing: 0.3em;
-  font-variant: small-caps;
-  color: var(--fg-3);
 }
 
 /* Every module body cross-fades rather than popping. */
@@ -113,121 +115,237 @@ body.off #root {
   opacity: 0;
 }
 
-/* ---------------------------------------------------------------- masthead */
+/* Reserved mount points (#now-playing, #hermy-dialogue): invisible until a
+   later pass fills them, and they collapse out of the grid while empty. */
+.mount:empty {
+  display: none;
+}
 
-.kicker {
+/* PET corner brackets: two opposing corner ticks, never a full frame. */
+.brackets {
+  position: relative;
+  padding: 10px 18px;
+}
+
+.brackets::before,
+.brackets::after {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 12px;
+}
+
+.brackets::before {
+  top: 0;
+  left: 0;
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+}
+
+.brackets::after {
+  bottom: 0;
+  right: 0;
+  border-bottom: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+}
+
+/* Section label: pixel-face, small, with a hollow diamond marker. */
+.label {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-family: var(--pixel);
+  font-size: 16px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  padding-bottom: 32px;
+}
+
+.label::before {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border: 1px solid currentColor;
+  transform: rotate(45deg);
+}
+
+/* --------------------------------------------------------------- PET head */
+
+.pet-head {
   display: flex;
   justify-content: space-between;
-  font-size: 21px;
-  letter-spacing: 0.3em;
-  font-variant: small-caps;
+  align-items: center;
+  font-family: var(--pixel);
+  /* Press Start 2P is an 8px-grid face: render at integer multiples only. */
+  font-size: 16px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
   color: var(--fg-3);
-  padding-bottom: 22px;
+  padding-bottom: 48px;
 }
+
+.navi {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: var(--fg-2);
+}
+
+.status-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--cyan);
+  animation: breathe 6s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.net {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.net .sep {
+  color: var(--fg-4);
+}
+
+/* --------------------------------------------------------------- masthead */
 
 .clock {
-  font-size: 244px;
-  line-height: 0.86;
-  letter-spacing: -0.022em;
-  color: var(--tint);
-  font-variant-numeric: tabular-nums lining-nums;
-}
-
-.masthead .rule {
-  margin: 30px 0 20px;
+  font-size: 176px;
+  line-height: 0.92;
+  letter-spacing: 0.01em;
+  color: var(--fg);
 }
 
 .dateline {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  font-size: 40px;
-  color: var(--fg-2);
+  padding-top: 16px;
+  font-size: 30px;
+  letter-spacing: 0.14em;
+  color: var(--fg-3);
 }
 
 /* ---------------------------------------------------------------- weather */
 
 .weather {
-  padding-top: 58px;
+  padding-top: 78px;
 }
 
 .wx {
   display: flex;
-  align-items: flex-end;
-  gap: 34px;
-  padding: 16px 0 30px;
+  align-items: center;
+  gap: 46px;
+}
+
+.wxicon {
+  fill: none;
+  stroke: currentColor;
+}
+
+.wx > .wxicon {
+  flex: none;
+  width: 118px;
+  height: 118px;
+  color: var(--fg-3);
 }
 
 .wx .temp {
-  font-size: 132px;
+  font-size: 148px;
   line-height: 0.9;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-}
-
-.wx .glyph {
-  font-size: 54px;
-  color: var(--fg-2);
-  padding-bottom: 16px;
+  color: var(--fg);
 }
 
 .wx .cond {
-  padding-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 20px;
+  padding-left: 8px;
 }
 
-.wx .cond em {
-  display: block;
-  font-size: 46px;
-  font-style: italic;
-  color: var(--fg-2);
-}
-
-.wx .hilo {
-  display: block;
-  padding-top: 8px;
-  font-size: 26px;
-  letter-spacing: 0.16em;
-  font-variant: small-caps;
+.wx .cond-text {
+  font-size: 28px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
   color: var(--fg-3);
-  font-variant-numeric: tabular-nums;
+}
+
+/* Thin HP-style day gauge: lo ▕━━╋━━▏ hi. Outline only, static. */
+.range {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.range .rv {
+  font-size: 24px;
+  color: var(--muted);
+}
+
+.gauge {
+  position: relative;
+  display: inline-block;
+  width: 212px;
+  height: 10px;
+  border: 1px solid var(--line);
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0,
+    transparent 20px,
+    var(--line-dim) 20px,
+    var(--line-dim) 21px
+  );
+}
+
+.gauge-tick {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  width: 4px;
+  transform: translateX(-50%);
+  background: var(--fg-2);
 }
 
 .hours {
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
-  border-top: 1px solid var(--rule);
-}
-
-.hours .hour {
-  padding: 20px 0 4px;
-  border-right: 1px solid var(--rule);
-}
-
-.hours .hour:last-child {
-  border-right: 0;
+  gap: 10px;
+  padding-top: 48px;
+  text-align: center;
 }
 
 .hours .h {
   display: block;
-  font-size: 24px;
-  letter-spacing: 0.22em;
-  color: var(--fg-3);
-  font-variant-numeric: tabular-nums;
+  font-size: 21px;
+  letter-spacing: 0.24em;
+  color: var(--muted);
 }
 
-.hours .g {
+.hours .wxicon {
   display: block;
-  font-size: 30px;
-  color: var(--fg-2);
-  padding: 12px 0 10px;
-  min-height: 42px;
+  width: 42px;
+  height: 42px;
+  margin: 14px auto 10px;
+  color: var(--fg-3);
 }
 
 .hours .t {
   display: block;
-  font-size: 40px;
-  font-variant-numeric: tabular-nums;
+  font-size: 34px;
+  color: var(--fg-2);
 }
 
 /* ------------------------------------------------- sparse centre (face) */
@@ -241,12 +359,8 @@ body.off #root {
 .lower {
   display: grid;
   grid-template-columns: 1.06fr 0.94fr;
-  gap: 56px;
-  padding-bottom: 54px;
-}
-
-.col > .rule {
-  margin: 16px 0 26px;
+  gap: 72px;
+  padding-bottom: 64px;
 }
 
 .agenda {
@@ -255,24 +369,25 @@ body.off #root {
 
 .agenda li {
   display: grid;
-  grid-template-columns: 132px 1fr;
-  gap: 14px;
-  padding-bottom: 24px;
-  font-size: 36px;
-  line-height: 1.16;
+  grid-template-columns: 126px 1fr;
+  gap: 18px;
+  padding-bottom: 26px;
+  font-size: 33px;
+  line-height: 1.2;
+  color: var(--fg-2);
 }
 
 .agenda .t {
-  color: var(--fg-3);
-  font-size: 30px;
-  letter-spacing: 0.04em;
-  padding-top: 6px;
-  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  font-size: 25px;
+  letter-spacing: 0.06em;
+  padding-top: 5px;
 }
 
 .agenda li.allday .t {
-  font-variant: small-caps;
-  letter-spacing: 0.16em;
+  font-size: 19px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
 }
 
 .agenda li.past,
@@ -281,32 +396,33 @@ body.off #root {
 }
 
 .more {
-  font-size: 24px;
-  letter-spacing: 0.16em;
-  font-variant: small-caps;
+  font-size: 20px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
   color: var(--fg-4);
-  padding-top: 4px;
+  padding-top: 6px;
 }
 
 .sub {
-  padding-top: 34px;
+  padding-top: 42px;
 }
 
 .sub .label {
-  display: block;
-  padding-bottom: 18px;
+  padding-bottom: 22px;
 }
 
+/* Tasks: dim chip-card flavour — an outlined code letter per item, no fills. */
 .todos {
   list-style: none;
 }
 
 .todos .area {
-  font-size: 22px;
-  letter-spacing: 0.26em;
-  font-variant: small-caps;
-  color: var(--fg-3);
-  padding: 24px 0 12px;
+  font-family: var(--pixel);
+  font-size: 16px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 28px 0 16px;
 }
 
 .todos .area:first-child {
@@ -314,38 +430,58 @@ body.off #root {
 }
 
 .todos li.item {
-  font-size: 32px;
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  gap: 14px;
+  align-items: start;
+  padding-bottom: 18px;
+}
+
+.todos .code {
+  width: 32px;
+  height: 32px;
+  margin-top: 3px;
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--pixel);
+  font-size: 16px;
+  color: var(--fg-4);
+}
+
+.todos .t {
+  font-size: 29px;
   line-height: 1.3;
-  padding-bottom: 12px;
   color: var(--fg-2);
 }
 
 /* ------------------------------------------------------------------ quote */
 
-.quote .rule {
-  margin-bottom: 34px;
-}
-
 .quote blockquote {
-  font-size: 44px;
-  line-height: 1.28;
-  font-style: italic;
-  color: var(--fg-2);
+  font-size: 33px;
+  line-height: 1.38;
+  color: var(--fg-3);
+  max-width: 880px;
 }
 
 .quote .by {
   padding-top: 20px;
-  font-size: 24px;
-  letter-spacing: 0.24em;
-  font-variant: small-caps;
-  color: var(--fg-3);
+  font-size: 20px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.quote .by::before {
+  content: '\2014\2002'; /* em dash + space */
 }
 
 .credit {
   padding-top: 26px;
-  font-size: 15px;
+  font-size: 13px;
   letter-spacing: 0.2em;
-  color: rgba(255, 255, 255, 0.09);
+  color: rgba(216, 248, 255, 0.07);
 }
 
 /* ------------------------------------------------------------- stale dot */
@@ -354,14 +490,13 @@ body.off #root {
   position: absolute;
   right: 30px;
   bottom: 30px;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: #fff;
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--cyan);
   opacity: 0;
   transition: opacity 2s ease;
 }
 
 .dot.on {
-  opacity: 0.25;
+  opacity: 0.3;
 }

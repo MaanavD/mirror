@@ -75,18 +75,98 @@
     return node;
   };
 
+  // ------------------------------------------------------ weather icons
+  //
+  // Stroke-only line art built from the Open-Meteo / WMO weathercode the
+  // server already ships per slot. One <path> per icon, currentColor, no
+  // fills — the same brightness physics as the rest of the glass.
+
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const r1 = (n) => Math.round(n * 10) / 10;
+
+  const circleD = (cx, cy, r) =>
+    `M${r1(cx - r)} ${cy}a${r} ${r} 0 1 0 ${r * 2} 0a${r} ${r} 0 1 0 ${-r * 2} 0`;
+
+  const raysD = (cx, cy, r0, r2, angles) =>
+    angles
+      .map((deg) => {
+        const a = (deg * Math.PI) / 180;
+        return `M${r1(cx + r0 * Math.cos(a))} ${r1(cy + r0 * Math.sin(a))}L${r1(cx + r2 * Math.cos(a))} ${r1(cy + r2 * Math.sin(a))}`;
+      })
+      .join('');
+
+  const cloudD = (dy = 0) => `M13 ${31 + dy}a6 6 0 0 1 3-11 9 9 0 0 1 17-1 6 6 0 0 1 2 12z`;
+
+  const flakeD = (x, y) =>
+    `M${x} ${r1(y - 3.4)}v6.8M${r1(x - 2.9)} ${r1(y - 1.7)}l5.8 3.4M${r1(x + 2.9)} ${r1(y - 1.7)}l-5.8 3.4`;
+
+  const ICONS = {
+    sun: () => circleD(24, 24, 8.5) + raysD(24, 24, 12.5, 16.5, [0, 45, 90, 135, 180, 225, 270, 315]),
+    'sun-cloud': () =>
+      circleD(19, 18, 7.5) +
+      raysD(19, 18, 11, 15, [0, 315, 270, 225, 180, 135]) +
+      'M25 36a4.5 4.5 0 0 1 2-8.4 6.5 6.5 0 0 1 12.4-.8 4.5 4.5 0 0 1 1.6 9.2z',
+    'cloud-sun': () => circleD(35, 12, 5) + raysD(35, 12, 8, 11.5, [0, 315, 270]) + cloudD(2),
+    cloud: () => cloudD(2),
+    fog: () => cloudD(-4) + 'M14 33h20M18 39h13',
+    drizzle: () => cloudD(-5) + 'M18 31l-1 3M26 31l-1 3M34 31l-1 3',
+    rain: () => cloudD(-6) + 'M19 29l-3 9M27 29l-3 9M35 29l-3 9',
+    sleet: () => cloudD(-6) + 'M19 29l-3 9M35 29l-3 9' + flakeD(26, 34),
+    snow: () => cloudD(-6) + flakeD(17, 33) + flakeD(25, 37) + flakeD(33, 33),
+    storm: () => cloudD(-7) + 'M27 26l-6 9h7l-6 10',
+    unknown: () => 'M24 15l8 9-8 9-8-9z',
+  };
+
+  function iconKind(code) {
+    if (code === 0) return 'sun';
+    if (code === 1) return 'sun-cloud';
+    if (code === 2) return 'cloud-sun';
+    if (code === 3) return 'cloud';
+    if (code === 45 || code === 48) return 'fog';
+    if (code >= 51 && code <= 55) return 'drizzle';
+    if (code === 56 || code === 57 || code === 66 || code === 67) return 'sleet';
+    if ((code >= 61 && code <= 65) || (code >= 80 && code <= 82)) return 'rain';
+    if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 'snow';
+    if (code >= 95 && code <= 99) return 'storm';
+    return 'unknown';
+  }
+
+  function weatherIcon(code, className) {
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 48 48');
+    svg.setAttribute('class', className);
+    svg.setAttribute('aria-hidden', 'true');
+    const path = document.createElementNS(SVG_NS, 'path');
+    path.setAttribute('d', ICONS[iconKind(code)]());
+    path.setAttribute('stroke-width', '2');
+    path.setAttribute('stroke-linecap', 'round');
+    path.setAttribute('stroke-linejoin', 'round');
+    svg.append(path);
+    return svg;
+  }
+
   function renderWeather(target, data) {
     if (!data || !data.current) return;
     const wx = el('div', 'wx');
+    wx.append(weatherIcon(data.current.code, 'wxicon'));
     wx.append(el('span', 'temp', `${data.current.temp}°`));
-    wx.append(el('span', 'glyph', data.current.glyph ?? ''));
 
-    const cond = el('span', 'cond');
-    cond.append(el('em', null, data.current.text ?? ''));
+    const cond = el('div', 'cond');
+    cond.append(el('span', 'cond-text', data.current.text ?? ''));
     const hi = data.today?.hi;
     const lo = data.today?.lo;
     if (hi !== null && hi !== undefined && lo !== null && lo !== undefined) {
-      cond.append(el('span', 'hilo', `hi ${hi} · lo ${lo}`));
+      const range = el('div', 'range');
+      range.append(el('span', 'rv', `${lo}°`));
+      const gauge = el('span', 'gauge');
+      const tick = el('span', 'gauge-tick');
+      const span = Math.max(1, hi - lo);
+      const pos = Math.min(1, Math.max(0, (data.current.temp - lo) / span));
+      tick.style.left = `${Math.round(pos * 100)}%`;
+      gauge.append(tick);
+      range.append(gauge);
+      range.append(el('span', 'rv', `${hi}°`));
+      cond.append(range);
     }
     wx.append(cond);
     target.append(wx);
@@ -96,7 +176,7 @@
       for (const hour of data.hours) {
         const cell = el('div', 'hour');
         cell.append(el('span', 'h', hour.label));
-        cell.append(el('span', 'g', hour.glyph ?? ''));
+        cell.append(weatherIcon(hour.code, 'wxicon'));
         cell.append(el('span', 't', hour.temp === null ? '—' : `${hour.temp}°`));
         hours.append(cell);
       }
@@ -130,15 +210,38 @@
     }
   }
 
+  // Sparse on purpose: the server caps at 8 visible, the glass shows fewer.
+  const TODOS_SHOWN = 6;
+
+  // Chip-code letter for an area, e.g. "Health / sleep" -> "H".
+  const codeLetter = (area) => (String(area ?? '').match(/[a-z0-9]/i)?.[0] ?? '·').toUpperCase();
+
   function renderTodos(target, data) {
     if (!data || !data.groups?.length) return;
     const list = el('ul', 'todos');
+    let shown = 0;
+    let hidden = 0;
     for (const group of data.groups) {
+      if (shown >= TODOS_SHOWN) {
+        hidden += group.items.length;
+        continue;
+      }
       list.append(el('li', 'area', group.area));
-      for (const item of group.items) list.append(el('li', 'item', item.title));
+      for (const item of group.items) {
+        if (shown >= TODOS_SHOWN) {
+          hidden += 1;
+          continue;
+        }
+        const li = el('li', 'item');
+        li.append(el('span', 'code', codeLetter(group.area)));
+        li.append(el('span', 't', item.title));
+        list.append(li);
+        shown += 1;
+      }
     }
     target.append(list);
-    if (data.more > 0) target.append(el('div', 'more', `+${data.more} more`));
+    const more = (data.more ?? 0) + hidden;
+    if (more > 0) target.append(el('div', 'more', `+${more} more`));
   }
 
   function renderQuote(target, data) {
