@@ -497,6 +497,11 @@ body.off #root {
   color: var(--fg-4);
 }
 
+/* Hidden while its fixed clone is lifted as the imminent-event HUD alert. */
+.agenda li.detaching {
+  visibility: hidden;
+}
+
 .more {
   font-size: 15px;
   letter-spacing: 0.24em;
@@ -527,6 +532,126 @@ body.off #root {
   }
   50% {
     opacity: 0.3;
+  }
+}
+
+/* ------------------------------------------------- imminent-event alert */
+
+/* A fixed clone of an agenda row, lifted to centre-top and framed by four
+   line-work HUD corner brackets. Pure cyan, dimmed to keep the OLED budget. */
+.hud-alert {
+  position: fixed;
+  z-index: 60;
+  left: 0;
+  top: 0;
+  padding: 18px 26px;
+  color: var(--cyan);
+  font-family: var(--term);
+  opacity: 0.78;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.hud-row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+  font-size: 22px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.hud-row .t {
+  color: var(--cyan);
+  font-size: 18px;
+  letter-spacing: 0.06em;
+  padding-top: 2px;
+}
+
+.hud-row .n {
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Four cyan corner brackets, drawn in on arrival. */
+.hud-corner {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border: 0 solid var(--cyan);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+.hud-alert.show .hud-corner {
+  opacity: 0.9;
+}
+.hud-corner.tl {
+  top: 0;
+  left: 0;
+  border-top-width: 2px;
+  border-left-width: 2px;
+}
+.hud-corner.tr {
+  top: 0;
+  right: 0;
+  border-top-width: 2px;
+  border-right-width: 2px;
+}
+.hud-corner.bl {
+  bottom: 0;
+  left: 0;
+  border-bottom-width: 2px;
+  border-left-width: 2px;
+}
+.hud-corner.br {
+  bottom: 0;
+  right: 0;
+  border-bottom-width: 2px;
+  border-right-width: 2px;
+}
+
+/* Two micro-pulses (opacity + scale) once the bracket has arrived. Motion on
+   the inner row only, so it never fights the outer translate. */
+.hud-alert.pulse .hud-row {
+  animation: hud-pulse 0.45s ease-in-out 2;
+}
+@keyframes hud-pulse {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Reserved urgency: a sub-60-second event shakes its own row ±2px, 0.5s. */
+.agenda li.shake {
+  animation: row-shake 0.5s ease-in-out;
+}
+@keyframes row-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-2px);
+  }
+  40% {
+    transform: translateX(2px);
+  }
+  60% {
+    transform: translateX(-2px);
+  }
+  80% {
+    transform: translateX(2px);
   }
 }
 
