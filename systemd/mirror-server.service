@@ -1,0 +1,44 @@
+# mirror dashboard server — runs on the TAILNET HOST, not the Pi.
+#
+#   sudo cp systemd/mirror-server.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now mirror-server
+#   journalctl -u mirror-server -f
+#
+# Adjust User/WorkingDirectory/ExecStart paths to match the checkout.
+# Secrets come from the repo's .env (read by dotenv), not from this unit.
+
+[Unit]
+Description=mirror smart-mirror dashboard server
+Documentation=https://github.com/local/mirror
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hermes
+Group=hermes
+WorkingDirectory=/home/hermes/mirror
+ExecStart=/usr/bin/node server.js
+Environment=NODE_ENV=production
+Restart=always
+RestartSec=3
+# Never let a wedged process hold the port forever.
+TimeoutStopSec=10
+KillSignal=SIGTERM
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mirror
+
+# Modest hardening: the only writable path it needs is the disk cache.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectControlGroups=yes
+ProtectKernelTunables=yes
+RestrictSUIDSGID=yes
+ReadWritePaths=/home/hermes/mirror/data
+
+[Install]
+WantedBy=multi-user.target

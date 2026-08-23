@@ -1,0 +1,36 @@
+# mirror pi-agent — display power relay, runs on the Raspberry Pi.
+#
+# A USER service on purpose: wlr-randr needs WAYLAND_DISPLAY/XDG_RUNTIME_DIR
+# from the graphical session, and xset needs DISPLAY. (vcgencmd works either
+# way, provided the user is in the `video` group: sudo usermod -aG video $USER)
+#
+#   sudo mkdir -p /opt/mirror && sudo cp -r pi-agent /opt/mirror/
+#   mkdir -p ~/.config/systemd/user ~/.config/mirror
+#   cp systemd/pi-agent.service ~/.config/systemd/user/
+#   printf 'PI_AGENT_TOKEN=%s\n' "$TOKEN" > ~/.config/mirror/pi-agent.env
+#   chmod 600 ~/.config/mirror/pi-agent.env
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now pi-agent
+#   curl -fsS localhost:8420/health
+#
+# PI_AGENT_TOKEN here must match PI_AGENT_TOKEN in the server's .env.
+
+[Unit]
+Description=mirror pi-agent (display power relay)
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/mirror/pi-agent.env
+Environment=PI_AGENT_PORT=8420
+Environment=PI_AGENT_OUTPUT=HDMI-A-1
+ExecStart=/usr/bin/node /opt/mirror/pi-agent/agent.js
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mirror-pi-agent
+
+[Install]
+WantedBy=default.target

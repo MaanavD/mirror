@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=1080, initial-scale=1" />
+    <title>mirror — mockup B · instrument</title>
+    <!--
+      DIRECTION B — INSTRUMENT
+      Grotesk + mono system stack, tabular numerals, quiet tick marks and
+      micro-dividers. Flight-instrument panel, not a poster.
+
+      Self-contained: embedded mock data, no network, no build. Designed at
+      1080x1920 portrait; the panel auto-scales down so it can be judged on a
+      laptop (scale is exactly 1 on the real kiosk).
+
+      Mirror physics: #000 fills only, light-on-black, sparse centre band,
+      overflow hidden, no cursor, no scrollbars.
+      One permitted accent: a dim instrument amber used ONLY as a 1px mark
+      (removable — set --accent to var(--fg-3)).
+    -->
+    <style>
+      :root {
+        --sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        --mono: ui-monospace, 'SF Mono', 'DejaVu Sans Mono', 'Roboto Mono', Menlo, Consolas, monospace;
+        --fg: #ffffff;
+        --fg-2: rgba(255, 255, 255, 0.6);
+        --fg-3: rgba(255, 255, 255, 0.34);
+        --fg-4: rgba(255, 255, 255, 0.18);
+        --rule: rgba(255, 255, 255, 0.16);
+        --accent: #b98a3c;
+        --pad: 64px;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        background: #000;
+        overflow: hidden;
+        cursor: none;
+      }
+
+      :focus {
+        outline: none;
+      }
+
+      .stage {
+        width: 100vw;
+        height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #000;
+      }
+
+      .panel {
+        position: relative;
+        width: 1080px;
+        height: 1920px;
+        background: #000;
+        color: var(--fg);
+        font-family: var(--sans);
+        font-variant-numeric: tabular-nums;
+        padding: var(--pad);
+        display: grid;
+        grid-template-rows: auto auto 1fr auto auto;
+        transform-origin: center center;
+        overflow: hidden;
+      }
+
+      .micro {
+        font-family: var(--mono);
+        font-size: 16px;
+        letter-spacing: 0.34em;
+        text-transform: uppercase;
+        color: var(--fg-3);
+      }
+
+      .divider {
+        height: 1px;
+        background: var(--rule);
+        border: 0;
+      }
+
+      /* left-edge rail of ticks: anchors the eye without lighting the centre */
+      .rail {
+        position: absolute;
+        left: 0;
+        top: 300px;
+        bottom: 300px;
+        width: 10px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+
+      .rail i {
+        display: block;
+        height: 1px;
+        width: 6px;
+        background: rgba(255, 255, 255, 0.14);
+      }
+
+      .rail i:nth-child(5n + 1) {
+        width: 14px;
+        background: rgba(255, 255, 255, 0.24);
+      }
+
+      /* ---------------- clock block ---------------- */
+
+      .head {
+        display: grid;
+        gap: 14px;
+      }
+
+      .headrow {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+      }
+
+      .clock {
+        font-family: var(--mono);
+        font-size: 236px;
+        line-height: 0.9;
+        letter-spacing: -0.03em;
+        font-weight: 300;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .clock .sep {
+        color: var(--fg-2);
+      }
+
+      /* 60 ticks = one minute scale under the clock; every 5th is taller */
+      .scale {
+        display: flex;
+        align-items: flex-end;
+        gap: 0;
+        height: 16px;
+        margin: 10px 0 6px;
+      }
+
+      .scale i {
+        flex: 1 1 auto;
+        height: 4px;
+        border-left: 1px solid rgba(255, 255, 255, 0.16);
+      }
+
+      .scale i:nth-child(5n + 1) {
+        height: 11px;
+        border-left-color: rgba(255, 255, 255, 0.3);
+      }
+
+      .scale i.mark {
+        height: 16px;
+        border-left: 1px solid var(--accent);
+      }
+
+      .dateline {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        padding-top: 12px;
+      }
+
+      .dateline .day {
+        font-size: 38px;
+        letter-spacing: 0.01em;
+        color: var(--fg-2);
+      }
+
+      /* ---------------- weather ---------------- */
+
+      .wx {
+        padding-top: 54px;
+      }
+
+      .wx .divider {
+        margin: 14px 0 26px;
+      }
+
+      .wxmain {
+        display: flex;
+        align-items: flex-end;
+        gap: 30px;
+      }
+
+      .wxmain .temp {
+        font-family: var(--mono);
+        font-size: 118px;
+        line-height: 0.86;
+        font-weight: 300;
+      }
+
+      .wxmain .glyph {
+        font-size: 44px;
+        color: var(--fg-2);
+        padding-bottom: 14px;
+      }
+
+      .wxmain .meta {
+        padding-bottom: 12px;
+      }
+
+      .wxmain .cond {
+        display: block;
+        font-size: 34px;
+        color: var(--fg-2);
+        letter-spacing: 0.01em;
+      }
+
+      .wxmain .hilo {
+        display: block;
+        font-family: var(--mono);
+        font-size: 20px;
+        letter-spacing: 0.2em;
+        color: var(--fg-3);
+        padding-top: 8px;
+      }
+
+      /* hours strip with a fine hairline scale */
+      .strip {
+        padding-top: 34px;
+      }
+
+      .stripgrid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+      }
+
+      .stripgrid .cell {
+        padding-bottom: 12px;
+      }
+
+      .stripgrid .g {
+        display: block;
+        font-size: 24px;
+        color: var(--fg-2);
+        padding-bottom: 10px;
+        min-height: 34px;
+      }
+
+      .stripgrid .t {
+        display: block;
+        font-family: var(--mono);
+        font-size: 38px;
+        font-weight: 300;
+      }
+
+      .ticks {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        border-top: 1px solid var(--rule);
+      }
+
+      .ticks .tick {
+        position: relative;
+        height: 22px;
+        border-left: 1px solid rgba(255, 255, 255, 0.22);
+      }
+
+      .ticks .tick:after {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: 0;
+        height: 8px;
+        border-left: 1px solid rgba(255, 255, 255, 0.12);
+      }
+
+      .ticks .tick.now {
+        border-left-color: var(--accent);
+      }
+
+      .hourlabels {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+      }
+
+      .hourlabels span {
+        font-family: var(--mono);
+        font-size: 19px;
+        letter-spacing: 0.2em;
+        color: var(--fg-3);
+        padding-top: 8px;
+      }
+
+      /* ---------------- sparse centre ---------------- */
+
+      .void {
+        min-height: 300px;
+      }
+
+      /* ---------------- lower deck ---------------- */
+
+      .deck {
+        display: grid;
+        grid-template-columns: 1.04fr 0.96fr;
+        gap: 52px;
+        padding-bottom: 50px;
+      }
+
+      .block .divider {
+        margin: 14px 0 24px;
+      }
+
+      .rows {
+        list-style: none;
+      }
+
+      .rows li {
+        display: grid;
+        grid-template-columns: 118px 1fr;
+        gap: 16px;
+        padding-bottom: 22px;
+        font-size: 33px;
+        line-height: 1.18;
+        color: var(--fg);
+      }
+
+      .rows .t {
+        font-family: var(--mono);
+        font-size: 26px;
+        letter-spacing: 0.08em;
+        color: var(--fg-3);
+        padding-top: 5px;
+      }
+
+      .rows li.allday .t {
+        font-size: 15px;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        padding-top: 11px;
+      }
+
+      .rows li.past,
+      .rows li.past .t {
+        color: var(--fg-4);
+      }
+
+      .sub {
+        padding-top: 30px;
+      }
+
+      .sub .micro {
+        display: block;
+        padding-bottom: 16px;
+      }
+
+      .todo {
+        list-style: none;
+      }
+
+      .todo .area {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 22px 0 12px;
+      }
+
+      .todo .area:first-child {
+        padding-top: 0;
+      }
+
+      .todo .area .micro {
+        white-space: nowrap;
+      }
+
+      .todo .area .fill {
+        flex: 1 1 auto;
+        height: 1px;
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      .todo li.item {
+        display: grid;
+        grid-template-columns: 22px 1fr;
+        font-size: 30px;
+        line-height: 1.3;
+        color: var(--fg-2);
+        padding-bottom: 11px;
+      }
+
+      .todo li.item b {
+        font-family: var(--mono);
+        font-weight: 400;
+        color: var(--fg-4);
+        font-size: 22px;
+        padding-top: 5px;
+      }
+
+      .todo li.more {
+        font-family: var(--mono);
+        font-size: 18px;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--fg-4);
+        padding-top: 14px;
+      }
+
+      /* ---------------- quote ---------------- */
+
+      .quote .divider {
+        margin-bottom: 30px;
+      }
+
+      .quote p {
+        font-size: 40px;
+        line-height: 1.3;
+        color: var(--fg-2);
+        letter-spacing: 0.005em;
+      }
+
+      .quote .by {
+        display: block;
+        padding-top: 20px;
+        font-family: var(--mono);
+        font-size: 19px;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: var(--fg-3);
+      }
+
+      .credit {
+        padding-top: 24px;
+        font-family: var(--mono);
+        font-size: 13px;
+        letter-spacing: 0.2em;
+        color: rgba(255, 255, 255, 0.09);
+      }
+
+      .dot {
+        position: absolute;
+        right: 28px;
+        bottom: 28px;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #fff;
+        opacity: 0.25;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="stage">
+      <div class="panel">
+        <div class="rail" aria-hidden="true">
+          <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+          <i></i><i></i><i></i><i></i><i></i><i></i>
+        </div>
+
+        <header class="head">
+          <div class="headrow">
+            <span class="micro">local</span>
+            <span class="micro">47.61n 122.33w</span>
+          </div>
+          <div class="clock">07<span class="sep">:</span>42</div>
+          <div class="scale" aria-hidden="true">
+            <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="mark"></i><i></i><i></i>
+            <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            <i></i>
+          </div>
+          <div class="dateline">
+            <span class="day">sunday 23 august 2026</span>
+            <span class="micro">wk 34 · d 235</span>
+          </div>
+        </header>
+
+        <section class="wx">
+          <span class="micro">weather · seattle</span>
+          <hr class="divider" />
+          <div class="wxmain">
+            <span class="temp">13°</span>
+            <span class="glyph">⋮⋮</span>
+            <span class="meta">
+              <span class="cond">rain</span>
+              <span class="hilo">hi 17 &nbsp;·&nbsp; lo 11</span>
+            </span>
+          </div>
+
+          <div class="strip">
+            <div class="stripgrid">
+              <div class="cell"><span class="g">◑</span><span class="t">13°</span></div>
+              <div class="cell"><span class="g">◑</span><span class="t">15°</span></div>
+              <div class="cell"><span class="g">◕</span><span class="t">16°</span></div>
+              <div class="cell"><span class="g">⋮</span><span class="t">16°</span></div>
+              <div class="cell"><span class="g">⋮⋮</span><span class="t">15°</span></div>
+              <div class="cell"><span class="g">⋮</span><span class="t">14°</span></div>
+            </div>
+            <div class="ticks" aria-hidden="true">
+              <i class="tick now"></i><i class="tick"></i><i class="tick"></i><i class="tick"></i><i class="tick"></i
+              ><i class="tick"></i>
+            </div>
+            <div class="hourlabels">
+              <span>08</span><span>10</span><span>12</span><span>14</span><span>16</span><span>18</span>
+            </div>
+          </div>
+        </section>
+
+        <div class="void"></div>
+
+        <div class="deck">
+          <div class="block">
+            <span class="micro">today</span>
+            <hr class="divider" />
+            <ul class="rows">
+              <li class="allday"><span class="t">all day</span><span>nyx offsite — all hands</span></li>
+              <li class="past"><span class="t">06:30</span><span>lift — pull</span></li>
+              <li><span class="t">09:15</span><span>standup</span></li>
+              <li><span class="t">11:00</span><span>design review — mirror</span></li>
+              <li><span class="t">15:00</span><span>flux 2 eval sync</span></li>
+              <li><span class="t">19:30</span><span>dinner — pike &amp; pine</span></li>
+            </ul>
+            <div class="sub">
+              <span class="micro">tomorrow</span>
+              <ul class="rows">
+                <li class="allday"><span class="t">all day</span><span>quarter close</span></li>
+                <li><span class="t">08:20</span><span>dentist</span></li>
+                <li><span class="t">13:05</span><span>sf flight — sea→sfo</span></li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="block">
+            <span class="micro">todo</span>
+            <hr class="divider" />
+            <ul class="todo">
+              <li class="area"><span class="micro">career / bfl</span><span class="fill"></span></li>
+              <li class="item"><b>—</b><span>ship mirror v1 to the hallway panel</span></li>
+              <li class="item"><b>—</b><span>flux 2 eval writeup — first pass</span></li>
+              <li class="item"><b>—</b><span>review nyx inference pr</span></li>
+              <li class="area"><span class="micro">health / sleep</span><span class="fill"></span></li>
+              <li class="item"><b>—</b><span>lights out by 23:30 all week</span></li>
+              <li class="item"><b>—</b><span>book physio follow-up</span></li>
+              <li class="area"><span class="micro">sf / life</span><span class="fill"></span></li>
+              <li class="item"><b>—</b><span>renew id before the sf trip</span></li>
+              <li class="item"><b>—</b><span>sublet paperwork — sign + send</span></li>
+              <li class="item"><b>—</b><span>call the letting agent back</span></li>
+              <li class="more">+3 more</li>
+            </ul>
+          </div>
+        </div>
+
+        <section class="quote">
+          <hr class="divider" />
+          <p>Discipline is the bridge between goals and accomplishment.</p>
+          <span class="by">jim rohn</span>
+          <div class="credit">inspired by ZenQuotes</div>
+        </section>
+
+        <div class="dot"></div>
+      </div>
+    </div>
+
+    <script>
+      // Laptop convenience only: scale the 1080x1920 panel to fit the window.
+      (function () {
+        var panel = document.querySelector('.panel');
+        function fit() {
+          var s = Math.min(1, window.innerWidth / 1080, window.innerHeight / 1920);
+          panel.style.transform = 'scale(' + s + ')';
+        }
+        fit();
+        window.addEventListener('resize', fit);
+      })();
+    </script>
+  </body>
+</html>

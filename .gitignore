@@ -1,0 +1,22 @@
+node_modules/
+
+# secrets and local config
+# Everything .env* is ignored except the checked-in example. This deliberately
+# also covers side files like .env.local-secrets.
+.env
+.env.*
+!.env.example
+*.local
+secrets/
+google-*.json
+client_secret*.json
+token.json
+
+# runtime state (disk cache for offline resilience)
+data/*
+!data/.gitkeep
+
+# misc
+*.log
+npm-debug.log*
+.DS_Store

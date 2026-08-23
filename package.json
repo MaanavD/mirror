@@ -1,0 +1,19 @@
+{
+  "name": "mirror",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Smart mirror dashboard server + kiosk frontend (1080x1920 portrait, light-on-black)",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "MOCK=1 node --watch server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  }
+}

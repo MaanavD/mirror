@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=1080, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>mirror</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <!-- Layout is fixed at 1080x1920 portrait. Content is anchored top / left
+         edge / bottom; the tall `.void` row keeps the centre of the glass empty
+         for the viewer's face. See DESIGN.md. -->
+    <main id="root">
+      <header class="masthead">
+        <div class="kicker">
+          <span>seattle</span>
+          <span id="week"></span>
+        </div>
+        <!-- Clock is client-side only: it renders before, and without, any network. -->
+        <div id="clock" class="clock">--:--</div>
+        <hr class="rule" />
+        <div class="dateline"><span id="date"></span></div>
+      </header>
+
+      <section class="weather" id="weather" data-module="weather">
+        <div class="label">weather</div>
+        <div class="body"></div>
+      </section>
+
+      <div class="void"></div>
+
+      <div class="lower">
+        <section class="col" id="calendar" data-module="calendar">
+          <div class="label">today</div>
+          <hr class="rule" />
+          <div class="body"></div>
+        </section>
+
+        <section class="col" id="notion" data-module="notion">
+          <div class="label">todo</div>
+          <hr class="rule" />
+          <div class="body"></div>
+        </section>
+      </div>
+
+      <section class="quote" id="quote" data-module="quote">
+        <hr class="rule" />
+        <div class="body"></div>
+        <!-- Required by the ZenQuotes terms. Deliberately near-invisible. -->
+        <div class="credit">inspired by ZenQuotes</div>
+      </section>
+
+      <!-- The only staleness signal anywhere: one dim dot. Never text. -->
+      <div id="dot" class="dot"></div>
+    </main>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>

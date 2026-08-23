@@ -1,0 +1,367 @@
+/*
+  mirror — production styling.
+
+  Direction: EDITORIAL (mockup A) as the base — display serif masthead,
+  small-caps labels, hairline rules — with one borrowing from INSTRUMENT
+  (mockup B): tabular numerals everywhere numbers can change, so nothing
+  jitters between refreshes.
+
+  Physics, not preferences:
+    · #000 is the only fill. Black glass = mirror. No greys as backgrounds.
+    · Light on black, one white + a grey ramp. No large bright areas.
+    · Centre band stays empty (.void) for the viewer.
+    · No scrollbars, no cursor, no focus rings, overflow hidden.
+    · No spinners. Content cross-fades slowly or not at all.
+*/
+
+@font-face {
+  /* Playfair Display when present (or self-host into /fonts and add a url()
+     src); otherwise a system serif. The kiosk can be entirely offline. */
+  font-family: 'Mirror Display';
+  src: local('Playfair Display'), local('PlayfairDisplay-Regular'), local('Iowan Old Style'),
+    local('Palatino Linotype'), local('Georgia');
+  font-display: swap;
+}
+
+:root {
+  --serif: 'Mirror Display', 'Playfair Display', 'Iowan Old Style', 'Palatino Linotype', Palatino,
+    'Times New Roman', Georgia, serif;
+  --mono: ui-monospace, 'SF Mono', 'DejaVu Sans Mono', 'Roboto Mono', Menlo, Consolas, monospace;
+
+  --fg: #ffffff;
+  --fg-2: rgba(255, 255, 255, 0.62);
+  --fg-3: rgba(255, 255, 255, 0.34);
+  --fg-4: rgba(255, 255, 255, 0.18);
+  --rule: rgba(255, 255, 255, 0.18);
+
+  /* The single permitted accent: a warm off-white on the clock.
+     Set to #ffffff to remove. */
+  --tint: #f5efe6;
+
+  --pad: 68px;
+  --fade: 900ms;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  background: #000;
+  overflow: hidden;
+  cursor: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus,
+:focus-visible {
+  outline: none;
+}
+
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+#root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: var(--pad);
+  color: var(--fg);
+  background: #000;
+  font-family: var(--serif);
+  display: grid;
+  grid-template-rows: auto auto 1fr auto auto;
+  /* Burn-in mitigation: app.js nudges this a few px every ~10 minutes. */
+  transform: translate3d(0, 0, 0);
+  transition: transform 6s ease-in-out, opacity 1600ms ease;
+}
+
+/* Display "off": on a two-way mirror, pure black is off. */
+body.off #root {
+  opacity: 0;
+}
+
+.rule {
+  height: 1px;
+  background: var(--rule);
+  border: 0;
+}
+
+.label {
+  font-size: 21px;
+  letter-spacing: 0.3em;
+  font-variant: small-caps;
+  color: var(--fg-3);
+}
+
+/* Every module body cross-fades rather than popping. */
+.body {
+  opacity: 1;
+  transition: opacity var(--fade) ease;
+}
+
+.body.fading {
+  opacity: 0;
+}
+
+/* ---------------------------------------------------------------- masthead */
+
+.kicker {
+  display: flex;
+  justify-content: space-between;
+  font-size: 21px;
+  letter-spacing: 0.3em;
+  font-variant: small-caps;
+  color: var(--fg-3);
+  padding-bottom: 22px;
+}
+
+.clock {
+  font-size: 244px;
+  line-height: 0.86;
+  letter-spacing: -0.022em;
+  color: var(--tint);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.masthead .rule {
+  margin: 30px 0 20px;
+}
+
+.dateline {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 40px;
+  color: var(--fg-2);
+}
+
+/* ---------------------------------------------------------------- weather */
+
+.weather {
+  padding-top: 58px;
+}
+
+.wx {
+  display: flex;
+  align-items: flex-end;
+  gap: 34px;
+  padding: 16px 0 30px;
+}
+
+.wx .temp {
+  font-size: 132px;
+  line-height: 0.9;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.wx .glyph {
+  font-size: 54px;
+  color: var(--fg-2);
+  padding-bottom: 16px;
+}
+
+.wx .cond {
+  padding-bottom: 20px;
+}
+
+.wx .cond em {
+  display: block;
+  font-size: 46px;
+  font-style: italic;
+  color: var(--fg-2);
+}
+
+.wx .hilo {
+  display: block;
+  padding-top: 8px;
+  font-size: 26px;
+  letter-spacing: 0.16em;
+  font-variant: small-caps;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.hours {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  border-top: 1px solid var(--rule);
+}
+
+.hours .hour {
+  padding: 20px 0 4px;
+  border-right: 1px solid var(--rule);
+}
+
+.hours .hour:last-child {
+  border-right: 0;
+}
+
+.hours .h {
+  display: block;
+  font-size: 24px;
+  letter-spacing: 0.22em;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.hours .g {
+  display: block;
+  font-size: 30px;
+  color: var(--fg-2);
+  padding: 12px 0 10px;
+  min-height: 42px;
+}
+
+.hours .t {
+  display: block;
+  font-size: 40px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------- sparse centre (face) */
+
+.void {
+  min-height: 300px;
+}
+
+/* ------------------------------------------------------------ lower deck */
+
+.lower {
+  display: grid;
+  grid-template-columns: 1.06fr 0.94fr;
+  gap: 56px;
+  padding-bottom: 54px;
+}
+
+.col > .rule {
+  margin: 16px 0 26px;
+}
+
+.agenda {
+  list-style: none;
+}
+
+.agenda li {
+  display: grid;
+  grid-template-columns: 132px 1fr;
+  gap: 14px;
+  padding-bottom: 24px;
+  font-size: 36px;
+  line-height: 1.16;
+}
+
+.agenda .t {
+  color: var(--fg-3);
+  font-size: 30px;
+  letter-spacing: 0.04em;
+  padding-top: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.agenda li.allday .t {
+  font-variant: small-caps;
+  letter-spacing: 0.16em;
+}
+
+.agenda li.past,
+.agenda li.past .t {
+  color: var(--fg-4);
+}
+
+.more {
+  font-size: 24px;
+  letter-spacing: 0.16em;
+  font-variant: small-caps;
+  color: var(--fg-4);
+  padding-top: 4px;
+}
+
+.sub {
+  padding-top: 34px;
+}
+
+.sub .label {
+  display: block;
+  padding-bottom: 18px;
+}
+
+.todos {
+  list-style: none;
+}
+
+.todos .area {
+  font-size: 22px;
+  letter-spacing: 0.26em;
+  font-variant: small-caps;
+  color: var(--fg-3);
+  padding: 24px 0 12px;
+}
+
+.todos .area:first-child {
+  padding-top: 0;
+}
+
+.todos li.item {
+  font-size: 32px;
+  line-height: 1.3;
+  padding-bottom: 12px;
+  color: var(--fg-2);
+}
+
+/* ------------------------------------------------------------------ quote */
+
+.quote .rule {
+  margin-bottom: 34px;
+}
+
+.quote blockquote {
+  font-size: 44px;
+  line-height: 1.28;
+  font-style: italic;
+  color: var(--fg-2);
+}
+
+.quote .by {
+  padding-top: 20px;
+  font-size: 24px;
+  letter-spacing: 0.24em;
+  font-variant: small-caps;
+  color: var(--fg-3);
+}
+
+.credit {
+  padding-top: 26px;
+  font-size: 15px;
+  letter-spacing: 0.2em;
+  color: rgba(255, 255, 255, 0.09);
+}
+
+/* ------------------------------------------------------------- stale dot */
+
+.dot {
+  position: absolute;
+  right: 30px;
+  bottom: 30px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #fff;
+  opacity: 0;
+  transition: opacity 2s ease;
+}
+
+.dot.on {
+  opacity: 0.25;
+}

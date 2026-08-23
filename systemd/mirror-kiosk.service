@@ -1,0 +1,46 @@
+# Chromium kiosk on the Raspberry Pi — a USER service, so it inherits the
+# Wayland session started by labwc (Raspberry Pi OS Bookworm).
+#
+#   mkdir -p ~/.config/systemd/user
+#   cp systemd/mirror-kiosk.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now mirror-kiosk
+#   journalctl --user -u mirror-kiosk -f
+#
+# Replace MIRROR_HOST below with the tailnet hostname/IP of the server host.
+# Portrait rotation is a compositor concern, not a Chromium flag — see README
+# ("portrait rotation").
+#
+# NOTE: no --incognito / --guest. The dashboard uses localStorage to survive a
+# reboot with no network, and those flags would throw it away.
+
+[Unit]
+Description=mirror Chromium kiosk
+PartOf=graphical-session.target
+After=graphical-session.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+# Give the compositor a moment after login before grabbing the screen.
+ExecStartPre=/bin/sleep 5
+ExecStart=/usr/bin/chromium-browser \
+  --kiosk \
+  --noerrdialogs \
+  --disable-session-crashed-bubble \
+  --disable-features=Translate \
+  --disable-infobars \
+  --disable-pinch \
+  --overscroll-history-navigation=0 \
+  --hide-scrollbars \
+  --autoplay-policy=no-user-gesture-required \
+  --check-for-update-interval=31536000 \
+  --password-store=basic \
+  --ozone-platform=wayland \
+  --user-data-dir=%h/.config/mirror-kiosk \
+  http://MIRROR_HOST:8390
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

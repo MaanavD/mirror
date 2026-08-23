@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=1080, initial-scale=1" />
+    <title>mirror — mockup A · editorial</title>
+    <!--
+      DIRECTION A — EDITORIAL
+      Broadsheet masthead. High-contrast display serif, small-caps labels,
+      hairline rules. The clock IS the masthead.
+
+      Self-contained: embedded mock data, no network, no build. Designed at
+      1080x1920 portrait; the panel auto-scales down so it can be judged on a
+      laptop (scale is exactly 1 on the real kiosk).
+
+      Mirror physics: #000 fills only, light-on-black, sparse centre band,
+      overflow hidden, no cursor, no scrollbars.
+      One permitted accent: warm off-white #f5efe6 on the clock (removable —
+      set --tint to #ffffff).
+    -->
+    <style>
+      /*
+        Playfair Display if it happens to be installed (or self-hosted into
+        public/fonts and added as a url() src here); otherwise a system serif.
+        The kiosk may be fully offline, so the system stack is the real base.
+      */
+      @font-face {
+        font-family: 'Mirror Display';
+        src: local('Playfair Display'), local('PlayfairDisplay-Regular'), local('Iowan Old Style'),
+          local('Palatino Linotype'), local('Georgia');
+        font-display: swap;
+      }
+
+      :root {
+        --serif: 'Mirror Display', 'Playfair Display', 'Iowan Old Style', 'Palatino Linotype', Palatino,
+          'Times New Roman', Georgia, serif;
+        --tint: #f5efe6;
+        --fg: #ffffff;
+        --fg-2: rgba(255, 255, 255, 0.62);
+        --fg-3: rgba(255, 255, 255, 0.34);
+        --fg-4: rgba(255, 255, 255, 0.2);
+        --rule: rgba(255, 255, 255, 0.18);
+        --pad: 68px;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        background: #000;
+        overflow: hidden;
+        cursor: none;
+      }
+
+      :focus {
+        outline: none;
+      }
+
+      .stage {
+        width: 100vw;
+        height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #000;
+      }
+
+      .panel {
+        width: 1080px;
+        height: 1920px;
+        background: #000;
+        color: var(--fg);
+        font-family: var(--serif);
+        padding: var(--pad);
+        display: grid;
+        grid-template-rows: auto auto 1fr auto auto;
+        transform-origin: center center;
+        overflow: hidden;
+        position: relative;
+      }
+
+      .rule {
+        height: 1px;
+        background: var(--rule);
+        border: 0;
+      }
+
+      .label {
+        font-size: 21px;
+        letter-spacing: 0.3em;
+        font-variant: small-caps;
+        color: var(--fg-3);
+      }
+
+      /* ---------------- masthead: clock + date ---------------- */
+
+      .kicker {
+        display: flex;
+        justify-content: space-between;
+        font-size: 21px;
+        letter-spacing: 0.3em;
+        font-variant: small-caps;
+        color: var(--fg-3);
+        padding-bottom: 22px;
+      }
+
+      .clock {
+        font-size: 244px;
+        line-height: 0.86;
+        letter-spacing: -0.022em;
+        color: var(--tint);
+        font-weight: 400;
+        font-variant-numeric: tabular-nums lining-nums;
+      }
+
+      .masthead .rule {
+        margin: 30px 0 20px;
+      }
+
+      .dateline {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        font-size: 40px;
+        letter-spacing: 0.02em;
+        color: var(--fg-2);
+      }
+
+      .dateline .week {
+        font-size: 21px;
+        letter-spacing: 0.3em;
+        font-variant: small-caps;
+        color: var(--fg-3);
+      }
+
+      /* ---------------- weather ---------------- */
+
+      .weather {
+        padding-top: 58px;
+      }
+
+      .wx {
+        display: flex;
+        align-items: flex-end;
+        gap: 34px;
+        padding: 16px 0 30px;
+      }
+
+      .wx .temp {
+        font-size: 132px;
+        line-height: 0.9;
+        letter-spacing: -0.02em;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .wx .glyph {
+        font-size: 54px;
+        color: var(--fg-2);
+        padding-bottom: 16px;
+      }
+
+      .wx .cond {
+        padding-bottom: 20px;
+      }
+
+      .wx .cond em {
+        display: block;
+        font-size: 46px;
+        font-style: italic;
+        color: var(--fg-2);
+      }
+
+      .wx .cond span {
+        display: block;
+        padding-top: 8px;
+        font-size: 26px;
+        letter-spacing: 0.16em;
+        font-variant: small-caps;
+        color: var(--fg-3);
+      }
+
+      .hours {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        border-top: 1px solid var(--rule);
+      }
+
+      .hours .hour {
+        padding: 20px 0 4px;
+        text-align: left;
+        border-right: 1px solid var(--rule);
+      }
+
+      .hours .hour:last-child {
+        border-right: 0;
+      }
+
+      .hours .h {
+        display: block;
+        font-size: 24px;
+        letter-spacing: 0.22em;
+        color: var(--fg-3);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .hours .g {
+        display: block;
+        font-size: 30px;
+        color: var(--fg-2);
+        padding: 12px 0 10px;
+      }
+
+      .hours .t {
+        display: block;
+        font-size: 40px;
+        color: var(--fg);
+        font-variant-numeric: tabular-nums;
+      }
+
+      /* ---------------- sparse centre: the viewer's face ---------------- */
+
+      .void {
+        min-height: 300px;
+      }
+
+      /* ---------------- lower: agenda + todos ---------------- */
+
+      .lower {
+        display: grid;
+        grid-template-columns: 1.06fr 0.94fr;
+        gap: 56px;
+        padding-bottom: 54px;
+      }
+
+      .col > .rule {
+        margin: 16px 0 26px;
+      }
+
+      .agenda {
+        list-style: none;
+      }
+
+      .agenda li {
+        display: grid;
+        grid-template-columns: 132px 1fr;
+        gap: 14px;
+        padding-bottom: 24px;
+        font-size: 36px;
+        line-height: 1.16;
+      }
+
+      .agenda .t {
+        color: var(--fg-3);
+        font-size: 30px;
+        letter-spacing: 0.04em;
+        font-variant-numeric: tabular-nums;
+        padding-top: 6px;
+      }
+
+      .agenda .allday .t {
+        font-variant: small-caps;
+        letter-spacing: 0.16em;
+      }
+
+      .agenda .past {
+        color: var(--fg-4);
+      }
+
+      .agenda .past .t {
+        color: var(--fg-4);
+      }
+
+      .tomorrow {
+        padding-top: 34px;
+      }
+
+      .tomorrow .label {
+        display: block;
+        padding-bottom: 18px;
+      }
+
+      .todos {
+        list-style: none;
+      }
+
+      .todos .area {
+        font-size: 22px;
+        letter-spacing: 0.26em;
+        font-variant: small-caps;
+        color: var(--fg-3);
+        padding: 24px 0 12px;
+      }
+
+      .todos .area:first-child {
+        padding-top: 0;
+      }
+
+      .todos li {
+        font-size: 32px;
+        line-height: 1.3;
+        padding-bottom: 12px;
+        color: var(--fg-2);
+      }
+
+      .todos .more {
+        font-size: 24px;
+        letter-spacing: 0.16em;
+        font-variant: small-caps;
+        color: var(--fg-4);
+        padding-top: 16px;
+      }
+
+      /* ---------------- quote ---------------- */
+
+      .quote .rule {
+        margin-bottom: 34px;
+      }
+
+      .quote blockquote {
+        font-size: 44px;
+        line-height: 1.28;
+        font-style: italic;
+        color: var(--fg-2);
+      }
+
+      .quote .by {
+        padding-top: 20px;
+        font-size: 24px;
+        letter-spacing: 0.24em;
+        font-variant: small-caps;
+        color: var(--fg-3);
+      }
+
+      .credit {
+        padding-top: 26px;
+        font-size: 15px;
+        letter-spacing: 0.2em;
+        color: rgba(255, 255, 255, 0.09);
+      }
+
+      /* stale indicator: one dim dot, never text */
+      .dot {
+        position: absolute;
+        right: 30px;
+        bottom: 30px;
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: #fff;
+        opacity: 0.25;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="stage">
+      <div class="panel">
+        <header class="masthead">
+          <div class="kicker"><span>seattle</span><span>mirror</span></div>
+          <div class="clock">07:42</div>
+          <hr class="rule" />
+          <div class="dateline">
+            <span>sunday, 23 august</span>
+            <span class="week">week 34</span>
+          </div>
+        </header>
+
+        <section class="weather">
+          <div class="label">weather</div>
+          <div class="wx">
+            <span class="temp">13°</span>
+            <span class="glyph">⋮⋮</span>
+            <span class="cond">
+              <em>rain</em>
+              <span>hi 17 · lo 11</span>
+            </span>
+          </div>
+          <div class="hours">
+            <div class="hour"><span class="h">08</span><span class="g">◑</span><span class="t">13°</span></div>
+            <div class="hour"><span class="h">10</span><span class="g">◑</span><span class="t">15°</span></div>
+            <div class="hour"><span class="h">12</span><span class="g">◕</span><span class="t">16°</span></div>
+            <div class="hour"><span class="h">14</span><span class="g">⋮</span><span class="t">16°</span></div>
+            <div class="hour"><span class="h">16</span><span class="g">⋮⋮</span><span class="t">15°</span></div>
+            <div class="hour"><span class="h">18</span><span class="g">⋮</span><span class="t">14°</span></div>
+          </div>
+        </section>
+
+        <div class="void"></div>
+
+        <div class="lower">
+          <div class="col">
+            <div class="label">today</div>
+            <hr class="rule" />
+            <ul class="agenda">
+              <li class="allday"><span class="t">all day</span><span>nyx offsite — all hands</span></li>
+              <li class="past"><span class="t">06:30</span><span>lift — pull</span></li>
+              <li><span class="t">09:15</span><span>standup</span></li>
+              <li><span class="t">11:00</span><span>design review — mirror</span></li>
+              <li><span class="t">15:00</span><span>flux 2 eval sync</span></li>
+              <li><span class="t">19:30</span><span>dinner — pike &amp; pine</span></li>
+            </ul>
+            <div class="tomorrow">
+              <span class="label">tomorrow</span>
+              <ul class="agenda">
+                <li class="allday"><span class="t">all day</span><span>quarter close</span></li>
+                <li><span class="t">08:20</span><span>dentist</span></li>
+                <li><span class="t">13:05</span><span>sf flight — sea→sfo</span></li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="col">
+            <div class="label">todo</div>
+            <hr class="rule" />
+            <ul class="todos">
+              <li class="area">career / bfl</li>
+              <li>ship mirror v1 to the hallway panel</li>
+              <li>flux 2 eval writeup — first pass</li>
+              <li>review nyx inference pr</li>
+              <li class="area">health / sleep</li>
+              <li>lights out by 23:30 all week</li>
+              <li>book physio follow-up</li>
+              <li class="area">sf / life</li>
+              <li>renew id before the sf trip</li>
+              <li>sublet paperwork — sign + send</li>
+              <li>call the letting agent back</li>
+              <li class="more">+3 more</li>
+            </ul>
+          </div>
+        </div>
+
+        <section class="quote">
+          <hr class="rule" />
+          <blockquote>Discipline is the bridge between goals and accomplishment.</blockquote>
+          <div class="by">jim rohn</div>
+          <div class="credit">inspired by ZenQuotes</div>
+        </section>
+
+        <div class="dot"></div>
+      </div>
+    </div>
+
+    <script>
+      // Laptop convenience only: scale the 1080x1920 panel to fit the window.
+      (function () {
+        var panel = document.querySelector('.panel');
+        function fit() {
+          var s = Math.min(1, window.innerWidth / 1080, window.innerHeight / 1920);
+          panel.style.transform = 'scale(' + s + ')';
+        }
+        fit();
+        window.addEventListener('resize', fit);
+      })();
+    </script>
+  </body>
+</html>
