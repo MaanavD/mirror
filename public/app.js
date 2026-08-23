@@ -28,7 +28,7 @@
   // shared frame), so every entry is a list.
   const q = (selector) => document.querySelector(selector);
   const bodies = {
-    weather: [q('#wx-today'), q('#wx-tomorrow')],
+    weather: [q('#wx-today'), q('#wx-tomorrow'), q('#wx-rain')],
     calendar: [q('#cal-today'), q('#cal-tomorrow')],
     quote: [q('#quote .body')],
     notion: [q('#notion .body')],
@@ -172,7 +172,8 @@
   // is today (current + range gauge) over one tomorrow line (icon + hi/lo).
   // Tomorrow's condition text is dropped too — its icon already says it, and
   // a second line of prose is not worth the lit pixels.
-  function renderWeather([today, tomorrow], data) {
+  function renderWeather(targets, data) {
+    const [today, tomorrow, rainEl] = targets;
     if (!data || !data.current) return;
 
     const now = el('div', 'wx-now');
@@ -199,6 +200,15 @@
     hilo.append(el('span', 'lo', missing(next.lo) ? '' : ` / ${next.lo}°`));
     row.append(hilo);
     tomorrow.append(row);
+
+    // Dim "rain incoming" chip: only painted when the server flagged rain in
+    // the next two hours — dry days earn no pixels.
+    if (rainEl && data.rain && data.rain.rainAtISO) {
+      const when = new Date(data.rain.rainAtISO);
+      const hh = String(when.getHours()).padStart(2, '0');
+      const mm = String(when.getMinutes()).padStart(2, '0');
+      rainEl.append(el('div', 'wx-rain-chip', `// RAIN ${hh}:${mm}`));
+    }
   }
 
   function agendaList(events, { cursor = false } = {}) {

@@ -15,12 +15,54 @@ export function buildUrl({ lat, lon, timezone }) {
     current: 'temperature_2m,weather_code',
     hourly: 'temperature_2m,weather_code',
     daily: 'temperature_2m_max,temperature_2m_min,weather_code',
+    minutely_15: 'precipitation',
+    forecast_days: '2',
     timezone,
   });
   return `${OPEN_METEO}?${params}`;
 }
 
 const round = (v) => (Number.isFinite(Number(v)) ? Math.round(Number(v)) : null);
+
+/**
+ * From Open-Meteo minutely_15 precipitation, find the first 15-minute slot
+ * with >= `threshold` mm in the next `windowMin` minutes. Returns
+ * { rainAtISO, mmFirstHour } (the ISO instant of that slot and the total mm
+ * expected across the first hour from now) or null when no rain is coming.
+ * Anything missing degrades to null — the mirror simply shows no chip.
+ */
+export function pickRain(
+  raw,
+  { now = new Date(), timeZone = 'UTC', threshold = 0.2, windowMin = 120 } = {},
+) {
+  const times = raw?.minutely_15?.time;
+  const prec = raw?.minutely_15?.precipitation;
+  if (!Array.isArray(times) || !Array.isArray(prec) || times.length === 0) return null;
+
+  const hourEnd = now.getTime() + 60 * 60_000;
+  let rainAt = null;
+  let firstHour = 0;
+
+  for (let i = 0; i < times.length; i += 1) {
+    const at = parseFloatingLocal(times[i], timeZone);
+    if (!at) continue;
+    const minutesFrom = (at.getTime() - now.getTime()) / 60_000;
+    const mm = Number(prec[i]);
+    const finite = Number.isFinite(mm);
+
+    if (at.getTime() >= now.getTime() && at.getTime() < hourEnd && finite) {
+      firstHour += mm;
+    }
+
+    if (rainAt) continue;
+    if (minutesFrom < -7.5) continue; // slot already well in the past
+    if (minutesFrom > windowMin) break; // beyond the 2h window
+    if (finite && mm >= threshold) rainAt = at;
+  }
+
+  if (!rainAt) return null;
+  return { rainAtISO: rainAt.toISOString(), mmFirstHour: Number(firstHour.toFixed(1)) };
+}
 
 /**
  * Open-Meteo payload -> exactly what the mirror renders. Throws when the
@@ -84,6 +126,7 @@ export function shapeWeather(raw, { now = new Date(), timeZone = 'UTC' } = {}) {
     today: { hi, lo },
     tomorrow,
     hours,
+    rain: pickRain(raw, { now, timeZone }),
   };
 }
 

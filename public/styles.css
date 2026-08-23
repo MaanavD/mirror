@@ -391,6 +391,21 @@ body.off #root {
   margin-top: 14px;
 }
 
+/* "Rain incoming" chip: a small, dim cyan line under the readout. Brighter
+   than the faint astro/labels but still restrained — no filled panel. */
+.wx-rain:not(:empty) {
+  margin-top: 12px;
+}
+
+.wx-rain-chip {
+  font-family: var(--pixel);
+  font-size: 15px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--cyan);
+  opacity: 0.72;
+}
+
 /* Bounded so "severe thunderstorm" cannot widen the readout into the clock
    when the pixel faces are missing and the wide monospace floor is in use. */
 .cond-text {
