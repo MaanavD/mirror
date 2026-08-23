@@ -29,6 +29,7 @@
   const q = (selector) => document.querySelector(selector);
   const bodies = {
     weather: [q('#wx-today'), q('#wx-tomorrow')],
+    astro: [q('#astro-line')],
     calendar: [q('#cal-today'), q('#cal-tomorrow')],
     quote: [q('#quote .body')],
     notion: [q('#notion .body')],
@@ -201,6 +202,29 @@
     tomorrow.append(row);
   }
 
+  // Moon phase + sunrise/sunset + UV: one dim line under the weather deck.
+  function renderAstro([target], data) {
+    if (!data || data.moonPhase === undefined || data.moonPhase === null) return;
+
+    const line = el('div', 'astro-line');
+    line.innerHTML = data.svgMoon ?? '';
+    line.append(el('span', 'astro-phase', data.moonPhaseName ?? ''));
+
+    if (data.sunrise && data.sunset) {
+      line.append(el('span', 'astro-sep', '\u00A0\u00B7\u00A0'));
+      line.append(el('span', null, `\u2191${data.sunrise}`));
+      line.append(el('span', 'astro-sep', '\u00A0'));
+      line.append(el('span', null, `\u2193${data.sunset}`));
+    }
+
+    if (data.uv !== null && data.uv !== undefined && data.uv >= 3) {
+      line.append(el('span', 'astro-sep', '\u00A0\u00B7\u00A0'));
+      line.append(el('span', null, `UV ${data.uv}`));
+    }
+
+    target.append(line);
+  }
+
   function agendaList(events, { cursor = false } = {}) {
     const list = el('ul', 'agenda');
     // BN selection cursor sits on the next upcoming timed event, if any.
@@ -338,6 +362,7 @@
 
   const renderers = {
     weather: renderWeather,
+    astro: renderAstro,
     calendar: renderCalendar,
     quote: renderQuote,
     notion: renderTodos,
