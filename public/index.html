@@ -109,6 +109,14 @@
       <div id="dot" class="dot"></div>
     </main>
 
+    <!-- One-shot boot / "JACK IN" overlay (see app.js bootAnimation). Pure
+         black, line-work only; removed from the DOM when it finishes and
+         skipped entirely under prefers-reduced-motion. -->
+    <div id="boot" aria-hidden="true">
+      <div class="boot-text" role="img" aria-label="JACK IN! HERMY.EXE"></div>
+      <div class="boot-sweep"></div>
+    </div>
+
     <script src="/app.js" defer></script>
   </body>
 </html>

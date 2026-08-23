@@ -778,6 +778,57 @@
 
   // ------------------------------------------------------------- boot
 
+  // One-shot "JACK IN! HERMY.EXE" boot sequence, played only on a full page
+  // load (kiosk restart). Black glass, line-work only, no sound; the whole
+  // thing is cleared from the DOM when done. Under prefers-reduced-motion we
+  // skip straight to the dashboard.
+  function bootAnimation() {
+    const boot = document.getElementById('boot');
+    if (!boot) return;
+
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) {
+      boot.classList.add('gone');
+      boot.remove();
+      return;
+    }
+
+    const textEl = boot.querySelector('.boot-text');
+    const sweep = boot.querySelector('.boot-sweep');
+    if (!textEl || !sweep) {
+      boot.remove();
+      return;
+    }
+
+    const phrase = 'JACK IN! HERMY.EXE';
+    const TYPE_MS = 40;
+    const timers = [];
+    let i = 0;
+
+    const finish = () => {
+      boot.classList.add('done');
+      timers.push(setTimeout(() => {
+        boot.classList.add('gone');
+        boot.remove();
+      }, 540));
+    };
+
+    const type = () => {
+      i += 1;
+      textEl.textContent = phrase.slice(0, i);
+      if (i < phrase.length) {
+        timers.push(setTimeout(type, TYPE_MS));
+      } else {
+        timers.push(setTimeout(() => {
+          sweep.classList.add('run');
+          timers.push(setTimeout(finish, 380));
+        }, 140));
+      }
+    };
+
+    timers.push(setTimeout(type, 200));
+  }
+
   paintClock();
   hydrate();
   pollOnce();
@@ -786,6 +837,7 @@
   maybeGreet();
   nightWatch();
   setInterval(shift, BURN_IN_MS);
+  bootAnimation();
 
   // A kiosk left running for weeks accumulates renderer cruft; a nightly
   // reload while the panel is dark costs nothing.
