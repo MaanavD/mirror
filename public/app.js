@@ -45,6 +45,7 @@
     quote: [q('#quote .body')],
     notion: [q('#notion .body')],
     nanoleaf: [q('#nanoleaf .body')],
+    news: [q('#news .body')],
   };
   const nowPlayingEl = q('#now-playing');
   const leavebyEl = q('#leaveby');
@@ -489,6 +490,56 @@
     chip.append(el('span', 'aqi-label', `AQI ${data.aqi}`));
     chip.append(el('span', 'aqi-level', data.level.replace('-', ' ')));
     target.append(chip);
+  // Net feed: one HN headline at a time, cross-fading every 20s (no scrolling
+  // marquee). The rotation is module-level so a re-render only resets it when
+  // the payload actually changes (the `update` guard handles that upstream).
+  const NEWS_SWAP_MS = 20_000;
+  const NEWS_FADE_MS = 500;
+  let newsTimer = null;
+  let newsItems = [];
+  let newsPos = 0;
+  let newsTitleEl = null;
+  let newsScoreEl = null;
+
+  function paintNewsHead() {
+    const item = newsItems[newsPos];
+    if (!item) return;
+    newsTitleEl.textContent = String(item.title ?? '').toUpperCase();
+    newsScoreEl.textContent = `${item.score}`;
+  }
+
+  function renderNews([target], data) {
+    clearInterval(newsTimer);
+    newsTimer = null;
+    newsItems = Array.isArray(data) ? data.slice() : [];
+    if (!newsItems.length) {
+      target.replaceChildren();
+      return;
+    }
+
+    const feed = el('div', 'feed');
+    const tab = el('span', 'tag');
+    tab.append(el('span', null, '>> NET NEWS'));
+    const head = el('div', 'head');
+    const title = el('span', 't');
+    const score = el('span', 'pts');
+    head.append(title, score);
+    feed.append(tab, head);
+    target.append(feed);
+
+    newsTitleEl = title;
+    newsScoreEl = score;
+    newsPos = 0;
+    paintNewsHead();
+
+    newsTimer = setInterval(() => {
+      head.classList.add('swap');
+      setTimeout(() => {
+        newsPos = (newsPos + 1) % newsItems.length;
+        paintNewsHead();
+        head.classList.remove('swap');
+      }, NEWS_FADE_MS);
+    }, NEWS_SWAP_MS);
   }
 
   const renderers = {
@@ -499,6 +550,7 @@
     quote: renderQuote,
     notion: renderTodos,
     nanoleaf: renderNanoleaf,
+    news: renderNews,
   };
 
   // ------------------------------------------------------ now playing

@@ -955,6 +955,80 @@ body.off #root {
   color: rgba(216, 248, 255, 0.07);
 }
 
+/* ------------------------------------------------------------- net feed */
+
+/* Single dim BN line below the quote: skewed '>> NET NEWS' tab then one
+   headline at a time. No marquee — it cross-fades in place every 20s. Kept
+   small and low-opacity so it never reads as a lamp. */
+.news {
+  margin-top: 24px;
+  min-height: 30px;
+}
+
+.news:not(:has(.body > *)) {
+  display: none;
+}
+
+.news .feed {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  font-family: var(--term);
+  font-size: 23px;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  color: var(--fg-3);
+  opacity: 0.8;
+}
+
+.news .tag {
+  flex: none;
+  border: 1px solid var(--line);
+  padding: 5px 12px;
+  transform: skewX(-14deg);
+  box-shadow: inset 4px 0 0 var(--amber-edge);
+}
+
+.news .tag > span {
+  display: inline-block;
+  transform: skewX(14deg);
+  font-family: var(--pixel);
+  font-size: 14px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  white-space: nowrap;
+}
+
+.news .head {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: opacity 500ms ease;
+}
+
+.news .head.swap {
+  opacity: 0;
+}
+
+.news .head .t {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+
+.news .head .pts {
+  flex: none;
+  font-size: 16px;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
 /* ------------------------------------------------- sparse centre (face) */
 
 /* The point of the whole pass: a guaranteed floor of black, frameless glass
