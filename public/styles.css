@@ -391,6 +391,50 @@ body.off #root {
   margin-top: 14px;
 }
 
+/* AQI chip: small dim tag in the top band, below weather, right-aligned. */
+#aqi-chip {
+  margin-top: 10px;
+  text-align: right;
+}
+
+#aqi-chip:empty {
+  display: none;
+}
+
+.aqi-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 10px;
+  border: 1px solid var(--line-dim);
+  font-family: var(--pixel);
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+
+.aqi-chip.moderate {
+  color: rgba(248, 200, 80, 0.75);
+  border-color: rgba(248, 200, 80, 0.25);
+}
+
+.aqi-chip.unhealthy,
+.aqi-chip.very-unhealthy {
+  color: rgba(248, 140, 40, 0.85);
+  border-color: rgba(248, 140, 40, 0.35);
+  opacity: 0.8;
+}
+
+.aqi-label {
+  font-weight: normal;
+}
+
+.aqi-level {
+  color: var(--fg-4);
+  font-size: 11px;
+}
+
 /* Bounded so "severe thunderstorm" cannot widen the readout into the clock
    when the pixel faces are missing and the wide monospace floor is in use. */
 .cond-text {
