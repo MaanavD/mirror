@@ -133,6 +133,7 @@ export class Store {
           log: this.#log.child(name),
           previous: previous ? structuredClone(previous) : null,
           now: new Date(),
+          getModule: (modName) => this.#state.modules[modName] ?? null,
         };
         const data = this.#config.mock && mod.mock ? await mod.mock(ctx) : await mod.fetch(ctx);
         const fetchedAt = Date.now();
