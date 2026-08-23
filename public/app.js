@@ -351,6 +351,12 @@
   let hiddenPausedKey = null;
   let playingKey = null;
 
+  // Client-side progress reconciliation. The server only sends a snapshot of
+  // progressMs every refresh; between updates we advance the arc locally so it
+  // sweeps smoothly, then re-anchor on each fresh server payload.
+  let vinylLocal = null; // { durationMs, serverProgressMs, serverTs, playing }
+  let vinylRaf = 0;
+
   function trackKey(track) {
     return `${track?.name ?? ''}\\u0000${(track?.artists ?? []).join('\\u0000')}`;
   }
@@ -426,6 +432,7 @@
     overlay.dataset.trackKey = key;
     overlay.append(el('div', 'vinyl-kicker', 'now playing'));
 
+    const disc = el('div', 'vinyl-disc');
     const record = el('div', 'vinyl-record');
     const art = document.createElement('img');
     art.className = 'vinyl-art';
@@ -442,7 +449,22 @@
     });
     if (data.track.albumArtUrl) art.src = data.track.albumArtUrl;
     record.append(art);
-    overlay.append(record);
+
+    // Thin progress arc sitting just outside the rim. The SVG does not spin
+    // with the record, so the sweep stays anchored to the top.
+    const arc = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    arc.setAttribute('class', 'vinyl-arc');
+    arc.setAttribute('viewBox', '0 0 100 100');
+    arc.setAttribute('aria-hidden', 'true');
+    const arcCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    arcCircle.setAttribute('class', 'vinyl-arc-ring');
+    arcCircle.setAttribute('cx', '50');
+    arcCircle.setAttribute('cy', '50');
+    arcCircle.setAttribute('r', '49');
+    arc.append(arcCircle);
+
+    disc.append(record, arc);
+    overlay.append(disc);
 
     const meta = el('div', 'vinyl-meta');
     meta.append(el('div', 'vinyl-title'));
@@ -450,8 +472,64 @@
     const progress = el('div', 'vinyl-progress');
     progress.append(el('span'));
     meta.append(progress);
+    meta.append(el('div', 'vinyl-remaining'));
     overlay.append(meta);
     return overlay;
+  }
+
+  // Re-anchor local progress from a fresh server payload.
+  function anchorProgress(data) {
+    const durationMs = Number(data.durationMs) || 0;
+    const serverProgressMs = Math.max(0, Number(data.progressMs) || 0);
+    vinylLocal = {
+      durationMs,
+      serverProgressMs,
+      serverTs: Date.now(),
+      playing: Boolean(data.isPlaying),
+    };
+  }
+
+  // Interpolated progress in ms, advancing only while playing.
+  function liveProgressMs() {
+    if (!vinylLocal) return 0;
+    const { durationMs, serverProgressMs, serverTs, playing } = vinylLocal;
+    let ms = serverProgressMs;
+    if (playing) ms += Math.max(0, Date.now() - serverTs);
+    if (durationMs > 0) ms = Math.min(ms, durationMs);
+    return ms;
+  }
+
+  function formatRemaining(ms) {
+    const total = Math.max(0, Math.round(ms / 1000));
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return `-${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  function paintVinylProgress(overlay) {
+    if (!overlay || !vinylLocal) return;
+    const { durationMs } = vinylLocal;
+    const ms = liveProgressMs();
+    const ratio = durationMs > 0 ? Math.min(1, Math.max(0, ms / durationMs)) : 0;
+
+    overlay.querySelector('.vinyl-progress span').style.width = `${Math.round(ratio * 1000) / 10}%`;
+
+    const ring = overlay.querySelector('.vinyl-arc-ring');
+    if (ring) {
+      const r = 49;
+      const circumference = 2 * Math.PI * r;
+      ring.style.strokeDasharray = `${circumference}`;
+      ring.style.strokeDashoffset = `${circumference * (1 - ratio)}`;
+    }
+
+    const rem = overlay.querySelector('.vinyl-remaining');
+    if (rem) rem.textContent = durationMs > 0 ? formatRemaining(durationMs - ms) : '';
+  }
+
+  function tickVinyl() {
+    const overlay = nowPlayingEl.firstElementChild;
+    if (overlay && vinylLocal && vinylLocal.playing) paintVinylProgress(overlay);
+    vinylRaf = requestAnimationFrame(tickVinyl);
   }
 
   function updateVinylDetails(overlay, data) {
@@ -459,8 +537,8 @@
     overlay.classList.toggle('is-paused', !data.isPlaying);
     overlay.querySelector('.vinyl-title').textContent = data.track.name;
     overlay.querySelector('.vinyl-artists').textContent = (data.track.artists ?? []).join('  /  ') || 'unknown artist';
-    const ratio = data.durationMs > 0 ? Math.min(1, Math.max(0, data.progressMs / data.durationMs)) : 0;
-    overlay.querySelector('.vinyl-progress span').style.width = `${Math.round(ratio * 1000) / 10}%`;
+    anchorProgress(data);
+    paintVinylProgress(overlay);
   }
 
   function renderNowPlaying(data) {
@@ -473,6 +551,7 @@
       playingKey = null;
       nowPlayingEl.replaceChildren();
       clearAccent();
+      vinylLocal = null;
       return;
     }
 
@@ -782,6 +861,7 @@
   hydrate();
   pollOnce();
   connect();
+  tickVinyl();
   hermyRun();
   maybeGreet();
   nightWatch();
