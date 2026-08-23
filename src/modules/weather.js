@@ -14,7 +14,7 @@ export function buildUrl({ lat, lon, timezone }) {
     longitude: String(lon),
     current: 'temperature_2m,weather_code',
     hourly: 'temperature_2m,weather_code',
-    daily: 'temperature_2m_max,temperature_2m_min',
+    daily: 'temperature_2m_max,temperature_2m_min,weather_code',
     timezone,
   });
   return `${OPEN_METEO}?${params}`;
@@ -38,6 +38,17 @@ export function shapeWeather(raw, { now = new Date(), timeZone = 'UTC' } = {}) {
   const dayIndex = Math.max(0, dailyTimes.indexOf(todayKey));
   const hi = round(raw?.daily?.temperature_2m_max?.[dayIndex]);
   const lo = round(raw?.daily?.temperature_2m_min?.[dayIndex]);
+
+  // Tomorrow's outlook (additive field; everything above keeps its shape).
+  const nextIndex = dayIndex + 1;
+  const nextWmo = wmo(raw?.daily?.weather_code?.[nextIndex]);
+  const tomorrow = {
+    hi: round(raw?.daily?.temperature_2m_max?.[nextIndex]),
+    lo: round(raw?.daily?.temperature_2m_min?.[nextIndex]),
+    code: nextWmo.code,
+    text: nextWmo.text,
+    glyph: nextWmo.glyph,
+  };
 
   const times = raw?.hourly?.time ?? [];
   const temps = raw?.hourly?.temperature_2m ?? [];
@@ -71,6 +82,7 @@ export function shapeWeather(raw, { now = new Date(), timeZone = 'UTC' } = {}) {
     unit: '°C',
     current: { temp, code: current.code, text: current.text, glyph: current.glyph },
     today: { hi, lo },
+    tomorrow,
     hours,
   };
 }
@@ -113,6 +125,7 @@ export function mockRaw({ now = new Date(), timeZone = 'UTC' } = {}) {
       time: [today, tomorrow],
       temperature_2m_max: [17.4, 19.1],
       temperature_2m_min: [11.2, 12.0],
+      weather_code: [63, 80],
     },
   };
 }

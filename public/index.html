@@ -17,16 +17,22 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <!-- Layout is fixed at 1080x1920 portrait. Content is anchored top / left
-         edge / bottom; the tall `.void` row keeps the centre of the glass empty
-         for the viewer's face. See DESIGN.md and design/BN_REFERENCE.md. -->
+    <!-- Fixed 1080x1920 portrait. BN window grammar per design/BN_REFERENCE.md:
+         notched line-work frames with header tabs, no filled panels. The tall
+         `.void` row keeps the centre of the glass empty for the viewer. -->
     <main id="root">
-      <!-- PET header: Navi nameplate + net location. The status square is the
-           only always-on cyan element. -->
+      <!-- PET header: Navi emblem + nameplate + net location. The breathing
+           status square is the only always-on cyan element. -->
       <header class="pet-head">
-        <div class="navi brackets">
-          <span class="status-dot"></span>
+        <div class="navi">
+          <!-- Navi emblem: ring + core + the BN diagonal band, line-work only. -->
+          <svg class="emblem" viewBox="0 0 48 48" aria-hidden="true">
+            <circle class="e-outer" cx="24" cy="24" r="21" />
+            <circle class="e-inner" cx="24" cy="24" r="15" />
+            <path class="e-band" d="M10.5 30 30 10.5M18 37.5 37.5 18" />
+          </svg>
           <span class="navi-name">hermy.exe</span>
+          <span class="status-dot"></span>
         </div>
         <div class="net">
           <span>seattle</span>
@@ -41,8 +47,24 @@
         <div class="dateline"><span id="date"></span></div>
       </section>
 
-      <section class="weather" id="weather" data-module="weather">
-        <div class="body"></div>
+      <!-- Combined day deck: each column is one BN window frame whose tab sits
+           on the frame edge — weather summary on top, agenda under it.
+           A whole column hides itself while both slots are empty. -->
+      <section class="days">
+        <section class="win day" id="day-today" data-module="weather calendar">
+          <div class="frame"></div>
+          <span class="tab"><span>today</span></span>
+          <span class="tab aux"><span>weather</span></span>
+          <div class="slot wx" id="wx-today"></div>
+          <div class="slot cal" id="cal-today"></div>
+        </section>
+
+        <section class="win day" id="day-tomorrow" data-module="weather calendar">
+          <div class="frame"></div>
+          <span class="tab"><span>tomorrow</span></span>
+          <div class="slot wx" id="wx-tomorrow"></div>
+          <div class="slot cal" id="cal-tomorrow"></div>
+        </section>
       </section>
 
       <div class="void"></div>
@@ -52,13 +74,9 @@
       <div id="now-playing" class="mount"></div>
 
       <div class="lower">
-        <section class="col" id="calendar" data-module="calendar">
-          <div class="label">today</div>
-          <div class="body"></div>
-        </section>
-
-        <section class="col" id="notion" data-module="notion">
-          <div class="label">tasks</div>
+        <section class="win tasks" id="notion" data-module="notion">
+          <div class="frame"></div>
+          <span class="tab"><span>tasks</span></span>
           <div class="body"></div>
         </section>
       </div>

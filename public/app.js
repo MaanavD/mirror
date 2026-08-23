@@ -23,11 +23,14 @@
   const dateEl = document.getElementById('date');
   const weekEl = document.getElementById('week');
 
+  // A module may paint into several slots at once (weather and calendar each
+  // split across the TODAY / TOMORROW day columns), so every entry is a list.
+  const q = (selector) => document.querySelector(selector);
   const bodies = {
-    weather: document.querySelector('#weather .body'),
-    calendar: document.querySelector('#calendar .body'),
-    quote: document.querySelector('#quote .body'),
-    notion: document.querySelector('#notion .body'),
+    weather: [q('#wx-today'), q('#wx-tomorrow')],
+    calendar: [q('#cal-today'), q('#cal-tomorrow')],
+    quote: [q('#quote .body')],
+    notion: [q('#notion .body')],
   };
 
   // -------------------------------------------------------------- clock
@@ -145,49 +148,65 @@
     return svg;
   }
 
-  function renderWeather(target, data) {
-    if (!data || !data.current) return;
-    const wx = el('div', 'wx');
-    wx.append(weatherIcon(data.current.code, 'wxicon'));
-    wx.append(el('span', 'temp', `${data.current.temp}°`));
+  // HP-gauge temperature range (BN HP bar): lo → hi, segments lit up to the
+  // current temperature. Tomorrow's column gets numbers only, no gauge.
+  const HP_SEGMENTS = 10;
 
-    const cond = el('div', 'cond');
-    cond.append(el('span', 'cond-text', data.current.text ?? ''));
+  function hpGauge(lo, hi, current) {
+    const wrap = el('div', 'hp');
+    wrap.append(el('span', 'rv', `${lo}°`));
+    const bar = el('span', 'hp-bar');
+    const span = Math.max(1, hi - lo);
+    const pos = Math.min(1, Math.max(0, (current - lo) / span));
+    const lit = Math.max(1, Math.round(pos * HP_SEGMENTS));
+    for (let i = 0; i < HP_SEGMENTS; i += 1) bar.append(el('i', i < lit ? 'lit' : null));
+    wrap.append(bar);
+    wrap.append(el('span', 'rv', `${hi}°`));
+    return wrap;
+  }
+
+  // Hourly slots stay in the payload but are no longer rendered: the deck is
+  // TODAY (current + range gauge) and TOMORROW (outlook + hi/lo) only.
+  function renderWeather([today, tomorrow], data) {
+    if (!data || !data.current) return;
+
+    const now = el('div', 'wx-now');
+    now.append(weatherIcon(data.current.code, 'wxicon'));
+    now.append(el('span', 'temp', `${data.current.temp}°`));
+    today.append(now);
+    if (data.current.text) today.append(el('div', 'cond-text', data.current.text));
+
     const hi = data.today?.hi;
     const lo = data.today?.lo;
     if (hi !== null && hi !== undefined && lo !== null && lo !== undefined) {
-      const range = el('div', 'range');
-      range.append(el('span', 'rv', `${lo}°`));
-      const gauge = el('span', 'gauge');
-      const tick = el('span', 'gauge-tick');
-      const span = Math.max(1, hi - lo);
-      const pos = Math.min(1, Math.max(0, (data.current.temp - lo) / span));
-      tick.style.left = `${Math.round(pos * 100)}%`;
-      gauge.append(tick);
-      range.append(gauge);
-      range.append(el('span', 'rv', `${hi}°`));
-      cond.append(range);
+      today.append(hpGauge(lo, hi, data.current.temp));
     }
-    wx.append(cond);
-    target.append(wx);
 
-    if (data.hours?.length) {
-      const hours = el('div', 'hours');
-      for (const hour of data.hours) {
-        const cell = el('div', 'hour');
-        cell.append(el('span', 'h', hour.label));
-        cell.append(weatherIcon(hour.code, 'wxicon'));
-        cell.append(el('span', 't', hour.temp === null ? '—' : `${hour.temp}°`));
-        hours.append(cell);
-      }
-      target.append(hours);
-    }
+    // Older cached payloads predate the tomorrow field; render nothing then.
+    const next = data.tomorrow;
+    const missing = (v) => v === null || v === undefined;
+    if (!next || (missing(next.hi) && missing(next.code))) return;
+    const row = el('div', 'wx-now sm');
+    row.append(weatherIcon(next.code, 'wxicon'));
+    const hilo = el('span', 'hilo');
+    hilo.append(el('b', null, missing(next.hi) ? '—' : `${next.hi}°`));
+    hilo.append(el('span', 'lo', missing(next.lo) ? '' : ` / ${next.lo}°`));
+    row.append(hilo);
+    tomorrow.append(row);
+    if (next.text && next.text !== 'unknown') tomorrow.append(el('div', 'cond-text', next.text));
   }
 
-  function agendaList(events) {
+  function agendaList(events, { cursor = false } = {}) {
     const list = el('ul', 'agenda');
+    // BN selection cursor sits on the next upcoming timed event, if any.
+    const selected = cursor ? events.find((e) => !e.allDay && !e.past) : undefined;
     for (const event of events) {
-      const li = el('li', [event.allDay ? 'allday' : '', event.past ? 'past' : ''].filter(Boolean).join(' '));
+      const li = el(
+        'li',
+        [event.allDay ? 'allday' : '', event.past ? 'past' : '', event === selected ? 'sel' : '']
+          .filter(Boolean)
+          .join(' '),
+      );
       li.append(el('span', 't', event.timeLabel));
       li.append(el('span', null, event.title));
       list.append(li);
@@ -195,18 +214,15 @@
     return list;
   }
 
-  function renderCalendar(target, data) {
+  function renderCalendar([today, tomorrow], data) {
     if (!data || data.configured === false) return;
     if (data.today?.length) {
-      target.append(agendaList(data.today));
-      if (data.todayMore > 0) target.append(el('div', 'more', `+${data.todayMore} more`));
+      today.append(agendaList(data.today, { cursor: true }));
+      if (data.todayMore > 0) today.append(el('div', 'more', `+${data.todayMore} more`));
     }
     if (data.tomorrow?.length) {
-      const sub = el('div', 'sub');
-      sub.append(el('span', 'label', 'tomorrow'));
-      sub.append(agendaList(data.tomorrow));
-      if (data.tomorrowMore > 0) sub.append(el('div', 'more', `+${data.tomorrowMore} more`));
-      target.append(sub);
+      tomorrow.append(agendaList(data.tomorrow));
+      if (data.tomorrowMore > 0) tomorrow.append(el('div', 'more', `+${data.tomorrowMore} more`));
     }
   }
 
@@ -216,35 +232,33 @@
   // Chip-code letter for an area, e.g. "Health / sleep" -> "H".
   const codeLetter = (area) => (String(area ?? '').match(/[a-z0-9]/i)?.[0] ?? '·').toUpperCase();
 
-  function renderTodos(target, data) {
+  // Chip-card rows: one framed tile per task, area initial as the chip code.
+  function renderTodos([target], data) {
     if (!data || !data.groups?.length) return;
-    const list = el('ul', 'todos');
+    const list = el('ul', 'chips');
     let shown = 0;
     let hidden = 0;
     for (const group of data.groups) {
-      if (shown >= TODOS_SHOWN) {
-        hidden += group.items.length;
-        continue;
-      }
-      list.append(el('li', 'area', group.area));
       for (const item of group.items) {
         if (shown >= TODOS_SHOWN) {
           hidden += 1;
           continue;
         }
-        const li = el('li', 'item');
+        const li = el('li', 'chip');
         li.append(el('span', 'code', codeLetter(group.area)));
         li.append(el('span', 't', item.title));
         list.append(li);
         shown += 1;
       }
     }
+    if (shown === 0) return;
+    list.firstChild.classList.add('sel');
     target.append(list);
     const more = (data.more ?? 0) + hidden;
     if (more > 0) target.append(el('div', 'more', `+${more} more`));
   }
 
-  function renderQuote(target, data) {
+  function renderQuote([target], data) {
     if (!data || !data.text) return;
     target.append(el('blockquote', null, data.text));
     if (data.author) target.append(el('div', 'by', data.author));
@@ -262,17 +276,17 @@
   const swapTimers = {};
 
   function update(name, data) {
-    const target = bodies[name];
-    if (!target) return;
+    const targets = bodies[name];
+    if (!targets) return;
     const signature = JSON.stringify(data ?? null);
     if (signatures[name] === signature) return;
     const first = signatures[name] === undefined;
     signatures[name] = signature;
 
     const paint = () => {
-      target.replaceChildren();
-      renderers[name](target, data);
-      target.classList.remove('fading');
+      for (const target of targets) target.replaceChildren();
+      renderers[name](targets, data);
+      for (const target of targets) target.classList.remove('fading');
     };
 
     clearTimeout(swapTimers[name]);
@@ -280,7 +294,7 @@
       paint();
       return;
     }
-    target.classList.add('fading');
+    for (const target of targets) target.classList.add('fading');
     swapTimers[name] = setTimeout(paint, FADE_MS);
   }
 

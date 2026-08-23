@@ -1,20 +1,28 @@
 /*
   mirror — Hermy.EXE production styling.
 
-  Direction: Battle Network PET / network-console (design/BN_REFERENCE.md),
-  adapted for two-way glass. BN's bright filled panels are inverted into
-  line-work: corner brackets, 1px outlines, a thin gauge — never a filled
-  rectangle.
+  Direction: Battle Network window grammar (design/BN_REFERENCE.md), adapted
+  for two-way glass. The components are literal BN vocabulary, inverted from
+  filled panels into light-on-black line-work:
+
+    · window frames: thick outlines with stepped/notched corner cuts and a
+      thin inner rule (border-image, see --frame-src) — never a filled panel
+    · header tabs: skewed parallelograms sitting ON the frame edge, with a
+      thin amber accent on the leading edge (the only yellow anywhere)
+    · Navi emblem: ring + core + diagonal band, line-work in the PET header
+    · HP-gauge temperature range: segmented bar with angled end caps
+    · chip cards: rectangular task tiles with a chip-code letter square
+    · cursor markers: small right-pointing arrows on the "selected" row
 
   Physics, not preferences:
     · #000 is the only fill. Black glass = mirror. No greys as backgrounds.
-    · Light on black. Default luminance is the muted cyan ramp; #10f8f8 is
-      reserved for the single "online" signal; red/amber exist as tokens for
-      real alerts only.
+    · Default luminance is the muted cyan ramp; #10f8f8 is reserved for the
+      single "online" signal; red exists as a token for real alerts only.
     · Centre band stays empty (.void) for the viewer.
     · No scrollbars, no cursor, no focus rings, overflow hidden.
     · No spinners. Content cross-fades slowly or not at all.
-    · Motion budget: one slow breathing status square. Nothing else moves.
+    · Motion budget: one breathing status square + one two-frame BN cursor
+      blink. Nothing else moves.
 */
 
 @font-face {
@@ -42,15 +50,21 @@
 
   /* BN mirror palette — hex tokens from design/BN_REFERENCE.md §4. */
   --fg: #d8f8ff; /* main cyan-white; the one bright value */
-  --fg-2: rgba(216, 248, 255, 0.6);
+  --fg-2: rgba(216, 248, 255, 0.62);
   --fg-3: rgba(168, 232, 232, 0.42);
   --fg-4: rgba(168, 232, 232, 0.2);
   --muted: #496070;
-  --line: rgba(96, 150, 170, 0.3);
+  --line: rgba(96, 150, 170, 0.32);
   --line-dim: rgba(96, 150, 170, 0.16);
+  --navy: rgba(96, 120, 216, 0.55); /* frame/tab line work (#6078d8 ramp) */
+  --amber-edge: rgba(248, 208, 24, 0.42); /* tabs' leading edge only */
   --cyan: #10f8f8; /* "online" only — status square, stale dot */
-  --amber: #f8d018; /* notice; unused until a module earns it */
   --alert: #f83818; /* danger; reserved */
+
+  /* BN window frame: stepped-corner double outline, drawn once as SVG and
+     stretched via border-image so every frame shares the exact geometry.
+     Colour is baked (#6078d8); per-frame brightness comes from opacity. */
+  --frame-src: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'%3E%3Cpath fill='none' stroke='%236078d8' stroke-width='3' d='M10.5 2.5H49.5V6.5H53.5V10.5H57.5V49.5H53.5V53.5H49.5V57.5H10.5V53.5H6.5V49.5H2.5V10.5H6.5V6.5H10.5Z'/%3E%3Crect x='8.5' y='8.5' width='43' height='43' fill='none' stroke='%236078d8' stroke-opacity='.45'/%3E%3C/svg%3E");
 
   --pad: 72px;
   --fade: 900ms;
@@ -105,13 +119,15 @@ body.off #root {
   opacity: 0;
 }
 
-/* Every module body cross-fades rather than popping. */
-.body {
+/* Every module slot cross-fades rather than popping. */
+.body,
+.slot {
   opacity: 1;
   transition: opacity var(--fade) ease;
 }
 
-.body.fading {
+.body.fading,
+.slot.fading {
   opacity: 0;
 }
 
@@ -121,54 +137,79 @@ body.off #root {
   display: none;
 }
 
-/* PET corner brackets: two opposing corner ticks, never a full frame. */
-.brackets {
+/* ------------------------------------------------------- BN window frame */
+
+.win {
   position: relative;
-  padding: 10px 18px;
+  padding: 46px 40px 38px;
 }
 
-.brackets::before,
-.brackets::after {
-  content: '';
+/* Outline-only frame overlay; the notched geometry lives in --frame-src. */
+.win .frame {
   position: absolute;
-  width: 12px;
-  height: 12px;
+  inset: 0;
+  border: 20px solid transparent;
+  border-image: var(--frame-src) 14 stretch;
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: 0;
 }
 
-.brackets::before {
-  top: 0;
-  left: 0;
-  border-top: 1px solid var(--line);
-  border-left: 1px solid var(--line);
-}
-
-.brackets::after {
-  bottom: 0;
-  right: 0;
-  border-bottom: 1px solid var(--line);
-  border-right: 1px solid var(--line);
-}
-
-/* Section label: pixel-face, small, with a hollow diamond marker. */
-.label {
+/* Header tab ON the frame edge: skewed parallelogram, black-backed so it
+   punches through the frame line, thin amber accent on the leading edge. */
+.tab {
+  position: absolute;
+  top: -15px;
+  left: 38px;
+  height: 34px;
+  padding: 0 26px;
   display: flex;
   align-items: center;
-  gap: 16px;
-  font-family: var(--pixel);
-  font-size: 16px;
-  letter-spacing: 0.32em;
-  text-transform: uppercase;
-  color: var(--fg-3);
-  padding-bottom: 32px;
+  background: #000;
+  border: 2px solid var(--navy);
+  box-shadow: inset 4px 0 0 var(--amber-edge);
+  transform: skewX(-14deg);
+  z-index: 2;
 }
 
-.label::before {
-  content: '';
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border: 1px solid currentColor;
-  transform: rotate(45deg);
+.tab > span {
+  transform: skewX(14deg);
+  font-family: var(--pixel);
+  font-size: 16px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--fg-2);
+}
+
+/* Secondary tab (right edge, dimmer, no accent): labels the weather readout. */
+.tab.aux {
+  left: auto;
+  right: 38px;
+  top: -13px;
+  height: 30px;
+  padding: 0 20px;
+  border-color: var(--line);
+  box-shadow: none;
+}
+
+.tab.aux > span {
+  color: var(--fg-4);
+  letter-spacing: 0.2em;
+}
+
+/* A day column with nothing in either slot disappears entirely — no
+   dangling TODAY/TOMORROW tab. Same for an empty task deck. */
+.day:not(:has(.slot > *)) {
+  visibility: hidden;
+}
+
+#day-today:has(.wx:empty) .tab.aux {
+  visibility: hidden;
+}
+
+.tasks:not(:has(.body > *)) {
+  visibility: hidden;
 }
 
 /* --------------------------------------------------------------- PET head */
@@ -189,8 +230,30 @@ body.off #root {
 .navi {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 20px;
   color: var(--fg-2);
+}
+
+.emblem {
+  flex: none;
+  width: 46px;
+  height: 46px;
+  fill: none;
+  stroke: var(--fg-3);
+}
+
+.emblem .e-outer {
+  stroke-width: 3;
+}
+
+.emblem .e-inner {
+  stroke-width: 1.5;
+  stroke: var(--fg-4);
+}
+
+.emblem .e-band {
+  stroke-width: 2.5;
+  stroke: var(--fg-2);
 }
 
 .status-dot {
@@ -237,16 +300,20 @@ body.off #root {
   color: var(--fg-3);
 }
 
-/* ---------------------------------------------------------------- weather */
+/* --------------------------------------------------------------- day deck */
 
-.weather {
-  padding-top: 78px;
+.days {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 56px;
+  padding-top: 76px;
 }
 
-.wx {
+/* Weather summary at the top of each day column. */
+.wx-now {
   display: flex;
   align-items: center;
-  gap: 46px;
+  gap: 26px;
 }
 
 .wxicon {
@@ -254,113 +321,84 @@ body.off #root {
   stroke: currentColor;
 }
 
-.wx > .wxicon {
+.wx-now > .wxicon {
   flex: none;
-  width: 118px;
-  height: 118px;
+  width: 88px;
+  height: 88px;
   color: var(--fg-3);
 }
 
-.wx .temp {
-  font-size: 148px;
+.wx-now.sm > .wxicon {
+  width: 68px;
+  height: 68px;
+}
+
+.wx-now .temp {
+  font-size: 96px;
   line-height: 0.9;
   color: var(--fg);
 }
 
-.wx .cond {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 20px;
-  padding-left: 8px;
+.wx-now .hilo {
+  font-size: 48px;
+  line-height: 1;
+  color: var(--fg-2);
 }
 
-.wx .cond-text {
-  font-size: 28px;
-  letter-spacing: 0.2em;
+.wx-now .hilo b {
+  font-weight: normal;
+}
+
+.wx-now .hilo .lo {
+  color: var(--muted);
+}
+
+.cond-text {
+  padding-top: 14px;
+  font-size: 26px;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--fg-3);
 }
 
-/* Thin HP-style day gauge: lo ▕━━╋━━▏ hi. Outline only, static. */
-.range {
+/* HP-gauge temperature range: lo ▰▰▰▱▱ hi. Segmented bar, skewed end caps,
+   lit up to the current temperature. Outline only, static. */
+.hp {
   display: flex;
   align-items: center;
   gap: 16px;
+  margin-top: 22px;
 }
 
-.range .rv {
-  font-size: 24px;
+.hp .rv {
+  font-size: 26px;
   color: var(--muted);
 }
 
-.gauge {
-  position: relative;
-  display: inline-block;
-  width: 212px;
-  height: 10px;
-  border: 1px solid var(--line);
-  background: repeating-linear-gradient(
-    90deg,
-    transparent 0,
-    transparent 20px,
-    var(--line-dim) 20px,
-    var(--line-dim) 21px
-  );
+.hp-bar {
+  display: flex;
+  gap: 3px;
+  width: 224px;
+  height: 18px;
+  padding: 3px;
+  border: 2px solid var(--line);
+  transform: skewX(-18deg);
 }
 
-.gauge-tick {
-  position: absolute;
-  top: 1px;
-  bottom: 1px;
-  width: 4px;
-  transform: translateX(-50%);
-  background: var(--fg-2);
+.hp-bar i {
+  flex: 1;
+  background: var(--line-dim);
 }
 
-.hours {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  gap: 10px;
-  padding-top: 48px;
-  text-align: center;
+.hp-bar i.lit {
+  background: rgba(216, 248, 255, 0.5);
 }
 
-.hours .h {
-  display: block;
-  font-size: 21px;
-  letter-spacing: 0.24em;
-  color: var(--muted);
-}
-
-.hours .wxicon {
-  display: block;
-  width: 42px;
-  height: 42px;
-  margin: 14px auto 10px;
-  color: var(--fg-3);
-}
-
-.hours .t {
-  display: block;
-  font-size: 34px;
-  color: var(--fg-2);
-}
-
-/* ------------------------------------------------- sparse centre (face) */
-
-.void {
-  min-height: 300px;
-}
-
-/* ------------------------------------------------------------ lower deck */
-
-.lower {
-  display: grid;
-  grid-template-columns: 1.06fr 0.94fr;
-  gap: 72px;
-  padding-bottom: 64px;
+/* Agenda under the weather summary, split by a thin rule when both exist. */
+.slot.wx:not(:empty) + .slot.cal:not(:empty) {
+  margin-top: 32px;
+  padding-top: 32px;
+  border-top: 1px solid var(--line-dim);
 }
 
 .agenda {
@@ -368,24 +406,25 @@ body.off #root {
 }
 
 .agenda li {
+  position: relative;
   display: grid;
-  grid-template-columns: 126px 1fr;
-  gap: 18px;
-  padding-bottom: 26px;
-  font-size: 33px;
-  line-height: 1.2;
+  grid-template-columns: 106px 1fr;
+  gap: 16px;
+  padding-bottom: 22px;
+  font-size: 27px;
+  line-height: 1.25;
   color: var(--fg-2);
 }
 
 .agenda .t {
   color: var(--muted);
-  font-size: 25px;
+  font-size: 22px;
   letter-spacing: 0.06em;
-  padding-top: 5px;
+  padding-top: 3px;
 }
 
 .agenda li.allday .t {
-  font-size: 19px;
+  font-size: 17px;
   letter-spacing: 0.2em;
   text-transform: uppercase;
 }
@@ -396,78 +435,108 @@ body.off #root {
 }
 
 .more {
-  font-size: 20px;
+  font-size: 18px;
   letter-spacing: 0.24em;
   text-transform: uppercase;
   color: var(--fg-4);
   padding-top: 6px;
 }
 
-.sub {
-  padding-top: 42px;
+/* BN cursor: right-pointing selection arrow on the "current" row, with the
+   classic two-frame blink. */
+.sel::before {
+  content: '';
+  position: absolute;
+  left: -26px;
+  top: 9px;
+  width: 0;
+  height: 0;
+  border-left: 10px solid var(--fg-3);
+  border-top: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+  animation: cursor-blink 1.4s steps(1, end) infinite;
 }
 
-.sub .label {
-  padding-bottom: 22px;
+@keyframes cursor-blink {
+  0%,
+  100% {
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 0.3;
+  }
 }
 
-/* Tasks: dim chip-card flavour — an outlined code letter per item, no fills. */
-.todos {
-  list-style: none;
-}
+/* ------------------------------------------------------------ lower deck */
 
-.todos .area {
-  font-family: var(--pixel);
-  font-size: 16px;
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
-  color: var(--muted);
-  padding: 28px 0 16px;
-}
-
-.todos .area:first-child {
-  padding-top: 0;
-}
-
-.todos li.item {
+.lower {
   display: grid;
-  grid-template-columns: 48px 1fr;
-  gap: 14px;
-  align-items: start;
-  padding-bottom: 18px;
+  grid-template-columns: 1fr 470px;
+  padding-bottom: 56px;
 }
 
-.todos .code {
-  width: 32px;
-  height: 32px;
-  margin-top: 3px;
+/* Tasks stay lower-right; the empty left cell is reflection space. */
+.lower .tasks {
+  grid-column: 2;
+}
+
+.tasks .frame {
+  opacity: 0.38;
+}
+
+/* Chip cards: rectangular tile, code-letter square on the left, dim lines. */
+.chips {
+  list-style: none;
+  display: grid;
+  gap: 16px;
+}
+
+.chip {
+  position: relative;
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: 20px;
+  align-items: center;
+  padding: 11px 18px;
+  border: 1px solid var(--line-dim);
+  border-left-color: var(--line);
+}
+
+.chip .code {
+  width: 34px;
+  height: 34px;
   border: 1px solid var(--line);
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: var(--pixel);
   font-size: 16px;
-  color: var(--fg-4);
+  color: var(--fg-3);
 }
 
-.todos .t {
-  font-size: 29px;
-  line-height: 1.3;
+.chip .t {
+  font-size: 27px;
+  line-height: 1.25;
   color: var(--fg-2);
+}
+
+.chip.sel::before {
+  top: 50%;
+  margin-top: -7px;
 }
 
 /* ------------------------------------------------------------------ quote */
 
 .quote blockquote {
-  font-size: 33px;
+  font-size: 30px;
   line-height: 1.38;
   color: var(--fg-3);
-  max-width: 880px;
+  max-width: 780px;
 }
 
 .quote .by {
-  padding-top: 20px;
-  font-size: 20px;
+  padding-top: 18px;
+  font-size: 19px;
   letter-spacing: 0.28em;
   text-transform: uppercase;
   color: var(--muted);
@@ -478,10 +547,16 @@ body.off #root {
 }
 
 .credit {
-  padding-top: 26px;
+  padding-top: 24px;
   font-size: 13px;
   letter-spacing: 0.2em;
   color: rgba(216, 248, 255, 0.07);
+}
+
+/* ------------------------------------------------- sparse centre (face) */
+
+.void {
+  min-height: 240px;
 }
 
 /* ------------------------------------------------------------- stale dot */
