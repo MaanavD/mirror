@@ -32,6 +32,7 @@
     calendar: [q('#cal-today'), q('#cal-tomorrow')],
     quote: [q('#quote .body')],
     notion: [q('#notion .body')],
+    nanoleaf: [q('#nanoleaf .body')],
   };
 
   // -------------------------------------------------------------- clock
@@ -277,6 +278,62 @@
     if (more > 0) target.append(el('div', 'more', `+${more} more`));
   }
 
+  // Nanoleaf Shapes read as two tiny BN chip clusters. The outlines stay
+  // visible when off; an on light only adds a restrained color wash inside the
+  // hexes/triangles so the OLED mirror keeps its black budget.
+  const NANOFORMS = [
+    { kind: 'hex', points: '8,20 17,14 26,20 26,31 17,37 8,31' },
+    { kind: 'hex', points: '31,12 40,6 49,12 49,23 40,29 31,23' },
+    { kind: 'tri', points: '34,39 46,32 52,45' },
+    { kind: 'hex', points: '56,22 65,16 74,22 74,33 65,39 56,33' },
+    { kind: 'tri', points: '80,13 92,20 80,27' },
+  ];
+
+  function nanoleafIcon(light) {
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 100 52');
+    svg.setAttribute('class', 'nanoleaf-icon');
+    svg.setAttribute('aria-hidden', 'true');
+
+    const rgb = Array.isArray(light.rgb) && light.rgb.length >= 3
+      ? light.rgb.slice(0, 3).map(Number).filter(Number.isFinite)
+      : [];
+    if (light.on && rgb.length === 3) svg.style.color = `rgb(${rgb.map((value) => Math.min(255, Math.max(0, Math.round(value)))).join(' ')})`;
+
+    const level = Number.isFinite(Number(light.brightness)) ? Math.min(255, Math.max(0, Number(light.brightness))) / 255 : 0.5;
+    const fillOpacity = light.on ? (0.08 + level * 0.16).toFixed(3) : '0';
+    for (const form of NANOFORMS) {
+      const polygon = document.createElementNS(SVG_NS, 'polygon');
+      polygon.setAttribute('points', form.points);
+      polygon.setAttribute('class', `nanoleaf-panel ${form.kind}`);
+      polygon.setAttribute('fill', 'currentColor');
+      polygon.setAttribute('fill-opacity', fillOpacity);
+      svg.append(polygon);
+    }
+    return svg;
+  }
+
+  function renderNanoleaf([target], data) {
+    if (!data?.lights?.length) return;
+    const list = el('div', 'nanoleaf-lights');
+    for (const light of data.lights) {
+      const row = el('div', `nanoleaf-light${light.on ? ' on' : ' off'}`);
+      const label = String(light.name ?? light.entityId ?? 'shapes');
+      const state = light.on ? 'on' : 'off';
+      const level = light.on && Number.isFinite(Number(light.brightness))
+        ? ` ${Math.round((Number(light.brightness) / 255) * 100)}%`
+        : '';
+      row.append(nanoleafIcon(light));
+      const meta = el('div', 'nanoleaf-meta');
+      meta.append(el('div', 'nanoleaf-name', label));
+      meta.append(el('div', 'nanoleaf-state', `${state}${level}`));
+      row.append(meta);
+      row.setAttribute('aria-label', `${label} ${state}`);
+      list.append(row);
+    }
+    target.append(list);
+  }
+
   function renderQuote([target], data) {
     if (!data || !data.text) return;
     target.append(el('blockquote', null, data.text));
@@ -288,6 +345,7 @@
     calendar: renderCalendar,
     quote: renderQuote,
     notion: renderTodos,
+    nanoleaf: renderNanoleaf,
   };
 
   // Slow cross-fade, and only when the payload actually changed.

@@ -81,6 +81,15 @@ export const config = {
     version: '2022-06-28',
   },
 
+  ha: {
+    url: str('HA_URL', 'http://100.97.0.104:8123').replace(/\/+$/, ''),
+    tokenFile: resolvePath('HA_TOKEN_FILE', '/home/hermes/.hermes/ha_token'),
+  },
+
+  nanoleaf: {
+    entities: ['light.shapes_a418', 'light.shapes_dedf'],
+  },
+
   quote: {
     mode: /^(today|random)$/.test(str('ZENQUOTES_MODE', 'today')) ? str('ZENQUOTES_MODE', 'today') : 'today',
     rotateHour: 4,
