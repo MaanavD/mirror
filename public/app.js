@@ -46,6 +46,7 @@
     nanoleaf: [q('#nanoleaf .body')],
   };
   const nowPlayingEl = q('#now-playing');
+  const leavebyEl = q('#leaveby');
 
   // -------------------------------------------------------------- clock
 
@@ -477,6 +478,11 @@
     if (data.author) target.append(el('div', 'by', data.author));
   }
 
+  function renderLeaveby(target, data) {
+    if (!data || !data.eventTitle || !data.leaveBy) return;
+    target.append(el('span', null, `\u25B6 LEAVE BY ${data.leaveBy} \u00B7 ${data.driveMin} MIN DRIVE`));
+  }
+
   const renderers = {
     weather: renderWeather,
     astro: renderAstro,
@@ -775,6 +781,11 @@
     const cal = modules.calendar?.data ?? null;
     latestCalendar = cal && cal.configured !== false ? cal : null;
     checkImminent();
+    if (leavebyEl) {
+      const lbData = modules.leaveby?.data ?? null;
+      leavebyEl.replaceChildren();
+      if (lbData) renderLeaveby(leavebyEl, lbData);
+    }
 
     const stale = Object.values(modules).some((entry) => entry && entry.stale);
     dot.classList.toggle('on', stale);

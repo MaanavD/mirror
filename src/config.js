@@ -69,6 +69,9 @@ export const config = {
   lon: num('LON', -122.3321),
   timezone: str('TIMEZONE', 'America/Los_Angeles'),
 
+  homeLat: num('HOME_LAT', 47.6062),
+  homeLon: num('HOME_LON', -122.3321),
+
   google: {
     clientSecretFile: resolvePath('GOOGLE_CLIENT_SECRET_FILE', 'secrets/client_secret.json'),
     tokenFile: resolvePath('GOOGLE_TOKEN_FILE', 'secrets/token.json'),
@@ -119,6 +122,7 @@ export const config = {
     weatherMs: 15 * MINUTE,
     calendarMs: 5 * MINUTE,
     notionMs: 5 * MINUTE,
+    leavebyMs: 10 * MINUTE,
     // How often staleness is re-evaluated (and the dim dot re-decided).
     tickMs: 30_000,
   },
@@ -128,6 +132,7 @@ export const config = {
     weatherMs: 45 * MINUTE,
     calendarMs: 20 * MINUTE,
     notionMs: 20 * MINUTE,
+    leavebyMs: 15 * MINUTE,
     quoteMs: 36 * 60 * MINUTE,
     spotifyMs: 2 * MINUTE,
   },

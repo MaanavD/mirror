@@ -689,6 +689,31 @@ body.off #root {
   }
 }
 
+/* ---------------------------------------------------------- leave-by chip */
+
+/* Single dim line under the calendar frame: "> LEAVE BY 2:35 PM · 22 MIN
+   DRIVE". Hidden when empty so it does not consume grid space. */
+.leaveby {
+  display: flex;
+  align-items: center;
+  min-height: 2.2em;
+  margin-top: 12px;
+}
+
+.leaveby:empty {
+  display: none;
+}
+
+.leaveby span {
+  font-family: var(--pixel);
+  font-size: 14px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  opacity: 0.6;
+  white-space: nowrap;
+}
+
 /* ----------------------------------------------------------- bottom band */
 
 /* Both columns share a top edge. The left stack keeps the Nanoleaf readout

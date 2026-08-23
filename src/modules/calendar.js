@@ -40,6 +40,7 @@ export function normalizeEvent(item, timeZone) {
     endMs: end.getTime(),
     timeLabel: allDay ? 'all day' : localTimeLabel(start, timeZone),
     calendarId: item.calendarId ?? null,
+    location: String(item.location ?? '').trim() || null,
   };
 }
 
@@ -85,6 +86,7 @@ export function shapeAgenda(items, { now = new Date(), timeZone = 'UTC', calenda
         timeLabel: e.timeLabel,
         past: !e.allDay && e.endMs <= nowMs,
         calendarId: e.calendarId,
+        location: e.location,
       })),
       more: Math.max(0, all.length - cap),
     };
