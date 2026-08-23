@@ -19,7 +19,9 @@ function str(name, fallback = '') {
 }
 
 function num(name, fallback) {
-  const v = Number(str(name));
+  const raw = str(name);
+  if (raw === '') return fallback;
+  const v = Number(raw);
   return Number.isFinite(v) ? v : fallback;
 }
 
