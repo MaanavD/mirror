@@ -356,6 +356,72 @@
     return `${track?.name ?? ''}\\u0000${(track?.artists ?? []).join('\\u0000')}`;
   }
 
+  // ------------------------------------------------- album accent tinting
+  // While music plays, the whole UI's line work retints to the album art's
+  // dominant color. Frame geometry is a baked SVG data URL, so we rebuild it
+  // with the accent hex. Everything reverts when the overlay goes away.
+
+  const rootStyle = document.documentElement.style;
+  let accentKey = null;
+
+  function frameSrc(hex) {
+    const c = encodeURIComponent(hex);
+    return `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'%3E%3Cpath fill='none' stroke='${c}' stroke-width='3' d='M10.5 2.5H49.5V6.5H53.5V10.5H57.5V49.5H53.5V53.5H49.5V57.5H10.5V53.5H6.5V49.5H2.5V10.5H6.5V6.5H10.5Z'/%3E%3Crect x='8.5' y='8.5' width='43' height='43' fill='none' stroke='${c}' stroke-opacity='.45'/%3E%3C/svg%3E")`;
+  }
+
+  function applyAccent(rgb) {
+    const [r, g, b] = rgb;
+    const hex = `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+    rootStyle.setProperty('--navy', `rgba(${r}, ${g}, ${b}, 0.55)`);
+    rootStyle.setProperty('--line', `rgba(${r}, ${g}, ${b}, 0.36)`);
+    rootStyle.setProperty('--line-dim', `rgba(${r}, ${g}, ${b}, 0.18)`);
+    rootStyle.setProperty('--frame-src', frameSrc(hex));
+    rootStyle.setProperty('--vinyl-accent', `rgba(${r}, ${g}, ${b}, 0.6)`);
+  }
+
+  function clearAccent() {
+    accentKey = null;
+    for (const prop of ['--navy', '--line', '--line-dim', '--frame-src', '--vinyl-accent']) {
+      rootStyle.removeProperty(prop);
+    }
+  }
+
+  // Dominant color: downsample, score pixels by saturation, average the
+  // strongest hue bucket, then lift toward OLED-safe brightness.
+  function extractAccent(img) {
+    try {
+      const size = 24;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(img, 0, 0, size, size);
+      const { data } = ctx.getImageData(0, 0, size, size);
+      const buckets = new Map();
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i]; const g = data[i + 1]; const b = data[i + 2];
+        const max = Math.max(r, g, b); const min = Math.min(r, g, b);
+        if (max < 28) continue; // near-black: ignore
+        const sat = max === 0 ? 0 : (max - min) / max;
+        const weight = 0.2 + sat * (max / 255);
+        const hue = Math.round(((Math.atan2(Math.sqrt(3) * (g - b), 2 * r - g - b) * 180) / Math.PI + 360) % 360 / 24);
+        const bucket = buckets.get(hue) ?? { w: 0, r: 0, g: 0, b: 0 };
+        bucket.w += weight; bucket.r += r * weight; bucket.g += g * weight; bucket.b += b * weight;
+        buckets.set(hue, bucket);
+      }
+      let best = null;
+      for (const bucket of buckets.values()) if (!best || bucket.w > best.w) best = bucket;
+      if (!best || best.w === 0) return null;
+      let rgb = [best.r / best.w, best.g / best.w, best.b / best.w];
+      // Lift dim accents so the line work stays legible on the mirror.
+      const peak = Math.max(...rgb, 1);
+      if (peak < 150) rgb = rgb.map((v) => v * (150 / peak));
+      return rgb.map((v) => Math.min(255, Math.round(v)));
+    } catch {
+      return null; // canvas tainted or decode issue: keep BN palette
+    }
+  }
+
   function makeVinyl(data, key) {
     const overlay = el('section', 'vinyl-overlay');
     overlay.dataset.trackKey = key;
@@ -366,6 +432,15 @@
     art.className = 'vinyl-art';
     art.alt = '';
     art.draggable = false;
+    art.crossOrigin = 'anonymous';
+    art.addEventListener('load', () => {
+      if (accentKey === key) return;
+      const rgb = extractAccent(art);
+      if (rgb) {
+        applyAccent(rgb);
+        accentKey = key;
+      }
+    });
     if (data.track.albumArtUrl) art.src = data.track.albumArtUrl;
     record.append(art);
     overlay.append(record);
@@ -398,6 +473,7 @@
       hiddenPausedKey = null;
       playingKey = null;
       nowPlayingEl.replaceChildren();
+      clearAccent();
       return;
     }
 
@@ -417,7 +493,10 @@
           if (fading) {
             fading.classList.add('is-expiring');
             setTimeout(() => {
-              if (nowPlayingEl.firstElementChild === fading) nowPlayingEl.replaceChildren();
+              if (nowPlayingEl.firstElementChild === fading) {
+                nowPlayingEl.replaceChildren();
+                clearAccent();
+              }
               hiddenPausedKey = key;
             }, 1_400);
           } else {
