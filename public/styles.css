@@ -406,6 +406,40 @@ body.off #root {
   color: var(--fg-3);
 }
 
+/* Astro line: moon glyph + phase + sunrise/sunset + UV, one dim row. */
+.astro-line {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding-top: 8px;
+  font-size: 16px;
+  letter-spacing: 0.12em;
+  color: var(--fg-4);
+  text-transform: uppercase;
+}
+
+.astro-line svg {
+  flex: none;
+  stroke: currentColor;
+  fill: none;
+  vertical-align: middle;
+}
+
+.astro-phase {
+  font-family: var(--pixel);
+  font-size: 13px;
+  letter-spacing: 0.14em;
+}
+
+.astro-sep {
+  color: var(--fg-4);
+}
+
+.astro-line:not(:empty) {
+  margin-top: 4px;
+}
+
 /* HP-gauge temperature range: lo ▰▰▰▱▱ hi. Segmented bar, skewed end caps,
    lit up to the current temperature. Outline only, static. */
 .hp {
