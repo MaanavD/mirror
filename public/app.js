@@ -23,8 +23,9 @@
   const dateEl = document.getElementById('date');
   const weekEl = document.getElementById('week');
 
-  // A module may paint into several slots at once (weather and calendar each
-  // split across the TODAY / TOMORROW day columns), so every entry is a list.
+  // A module may paint into several slots at once (weather splits into today's
+  // readout and one tomorrow line, calendar into the two agenda columns of the
+  // shared frame), so every entry is a list.
   const q = (selector) => document.querySelector(selector);
   const bodies = {
     weather: [q('#wx-today'), q('#wx-tomorrow')],
@@ -149,8 +150,8 @@
   }
 
   // HP-gauge temperature range (BN HP bar): lo → hi, segments lit up to the
-  // current temperature. Tomorrow's column gets numbers only, no gauge.
-  const HP_SEGMENTS = 10;
+  // current temperature. Tomorrow's line gets numbers only, no gauge.
+  const HP_SEGMENTS = 8;
 
   function hpGauge(lo, hi, current) {
     const wrap = el('div', 'hp');
@@ -165,8 +166,10 @@
     return wrap;
   }
 
-  // Hourly slots stay in the payload but are no longer rendered: the deck is
-  // TODAY (current + range gauge) and TOMORROW (outlook + hi/lo) only.
+  // Hourly slots stay in the payload but are no longer rendered: the readout
+  // is today (current + range gauge) over one tomorrow line (icon + hi/lo).
+  // Tomorrow's condition text is dropped too — its icon already says it, and
+  // a second line of prose is not worth the lit pixels.
   function renderWeather([today, tomorrow], data) {
     if (!data || !data.current) return;
 
@@ -187,13 +190,13 @@
     const missing = (v) => v === null || v === undefined;
     if (!next || (missing(next.hi) && missing(next.code))) return;
     const row = el('div', 'wx-now sm');
+    row.append(el('span', 'lbl', 'tmr'));
     row.append(weatherIcon(next.code, 'wxicon'));
     const hilo = el('span', 'hilo');
     hilo.append(el('b', null, missing(next.hi) ? '—' : `${next.hi}°`));
     hilo.append(el('span', 'lo', missing(next.lo) ? '' : ` / ${next.lo}°`));
     row.append(hilo);
     tomorrow.append(row);
-    if (next.text && next.text !== 'unknown') tomorrow.append(el('div', 'cond-text', next.text));
   }
 
   function agendaList(events, { cursor = false } = {}) {
@@ -208,26 +211,42 @@
           .join(' '),
       );
       li.append(el('span', 't', event.timeLabel));
-      li.append(el('span', null, event.title));
+      li.append(el('span', 'n', event.title));
       list.append(li);
     }
     return list;
   }
 
+  // The agenda frame has to fit inside the top band, so the glass shows fewer
+  // rows than the payload carries and folds the rest into the "+n more" line.
+  const EVENTS_SHOWN = 3;
+
+  // Three rows are too few to spend on meetings that already ended, so the
+  // window slides forward until what is still to come fits — keeping earlier
+  // rows only while there is room above.
+  function windowStart(events) {
+    const next = events.findIndex((e) => !e.past);
+    const last = events.length - EVENTS_SHOWN;
+    return Math.max(0, next < 0 ? last : Math.min(next, last));
+  }
+
+  function renderDay(target, events, more, options) {
+    if (!events?.length) return;
+    const start = windowStart(events);
+    const shown = events.slice(start, start + EVENTS_SHOWN);
+    target.append(agendaList(shown, options));
+    const hidden = (more ?? 0) + events.length - shown.length;
+    if (hidden > 0) target.append(el('div', 'more', `+${hidden} more`));
+  }
+
   function renderCalendar([today, tomorrow], data) {
     if (!data || data.configured === false) return;
-    if (data.today?.length) {
-      today.append(agendaList(data.today, { cursor: true }));
-      if (data.todayMore > 0) today.append(el('div', 'more', `+${data.todayMore} more`));
-    }
-    if (data.tomorrow?.length) {
-      tomorrow.append(agendaList(data.tomorrow));
-      if (data.tomorrowMore > 0) tomorrow.append(el('div', 'more', `+${data.tomorrowMore} more`));
-    }
+    renderDay(today, data.today, data.todayMore, { cursor: true });
+    renderDay(tomorrow, data.tomorrow, data.tomorrowMore);
   }
 
   // Sparse on purpose: the server caps at 8 visible, the glass shows fewer.
-  const TODOS_SHOWN = 6;
+  const TODOS_SHOWN = 4;
 
   // Chip-code letter for an area, e.g. "Health / sleep" -> "H".
   const codeLetter = (area) => (String(area ?? '').match(/[a-z0-9]/i)?.[0] ?? '·').toUpperCase();

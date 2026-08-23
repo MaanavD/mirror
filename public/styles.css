@@ -18,6 +18,10 @@
     · #000 is the only fill. Black glass = mirror. No greys as backgrounds.
     · Default luminance is the muted cyan ramp; #10f8f8 is reserved for the
       single "online" signal; red exists as a token for real alerts only.
+    · Density budget: lit content is confined to a top band (~25% of the
+      panel) and a bottom band (~18%). Everything between is unlit, unframed
+      glass — that is where the viewer's face is. A module earns a window
+      frame by holding a list; one or two readouts get a tab or nothing.
     · Centre band stays empty (.void) for the viewer.
     · No scrollbars, no cursor, no focus rings, overflow hidden.
     · No spinners. Content cross-fades slowly or not at all.
@@ -66,7 +70,7 @@
      Colour is baked (#6078d8); per-frame brightness comes from opacity. */
   --frame-src: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'%3E%3Cpath fill='none' stroke='%236078d8' stroke-width='3' d='M10.5 2.5H49.5V6.5H53.5V10.5H57.5V49.5H53.5V53.5H49.5V57.5H10.5V53.5H6.5V49.5H2.5V10.5H6.5V6.5H10.5Z'/%3E%3Crect x='8.5' y='8.5' width='43' height='43' fill='none' stroke='%236078d8' stroke-opacity='.45'/%3E%3C/svg%3E");
 
-  --pad: 72px;
+  --pad: 52px;
   --fade: 900ms;
 }
 
@@ -108,7 +112,8 @@ body {
   font-family: var(--term);
   font-variant-numeric: tabular-nums lining-nums;
   display: grid;
-  grid-template-rows: auto auto auto 1fr auto auto auto auto;
+  /* head · top cluster · agenda frame · void · 2 mounts · bottom band */
+  grid-template-rows: auto auto auto 1fr auto auto auto;
   /* Burn-in mitigation: app.js nudges this a few px every ~10 minutes. */
   transform: translate3d(0, 0, 0);
   transition: transform 6s ease-in-out, opacity 1600ms ease;
@@ -141,16 +146,20 @@ body.off #root {
 
 .win {
   position: relative;
-  padding: 46px 40px 38px;
+  /* Wider on the left: the .sel cursor arrow hangs into that padding and must
+     still clear the frame stroke. */
+  padding: 30px 32px 24px 36px;
 }
 
-/* Outline-only frame overlay; the notched geometry lives in --frame-src. */
+/* Outline-only frame overlay; the notched geometry lives in --frame-src.
+   border-width scales the 14px slice, so a narrower border draws a thinner
+   stroke and a smaller corner notch — the same frame, one size down. */
 .win .frame {
   position: absolute;
   inset: 0;
-  border: 20px solid transparent;
+  border: 12px solid transparent;
   border-image: var(--frame-src) 14 stretch;
-  opacity: 0.5;
+  opacity: 0.45;
   pointer-events: none;
   z-index: 0;
 }
@@ -159,10 +168,10 @@ body.off #root {
    punches through the frame line, thin amber accent on the leading edge. */
 .tab {
   position: absolute;
-  top: -15px;
-  left: 38px;
-  height: 34px;
-  padding: 0 26px;
+  top: -12px;
+  left: 26px;
+  height: 26px;
+  padding: 0 18px;
   display: flex;
   align-items: center;
   background: #000;
@@ -175,40 +184,37 @@ body.off #root {
 .tab > span {
   transform: skewX(14deg);
   font-family: var(--pixel);
+  /* Press Start 2P is an 8px-grid face: render at integer multiples only. */
   font-size: 16px;
-  letter-spacing: 0.24em;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
   white-space: nowrap;
   color: var(--fg-2);
 }
 
-/* Secondary tab (right edge, dimmer, no accent): labels the weather readout. */
+/* Inactive tab: same geometry, no amber edge, dimmer line — BN's unselected
+   folder tab. Sits over the second column of the frame it labels. */
 .tab.aux {
-  left: auto;
-  right: 38px;
-  top: -13px;
-  height: 30px;
-  padding: 0 20px;
+  left: 52%;
   border-color: var(--line);
   box-shadow: none;
 }
 
 .tab.aux > span {
   color: var(--fg-4);
-  letter-spacing: 0.2em;
 }
 
-/* A day column with nothing in either slot disappears entirely — no
-   dangling TODAY/TOMORROW tab. Same for an empty task deck. */
-.day:not(:has(.slot > *)) {
+/* Nothing dangles: a tab hides with its column, the frame hides when every
+   column is empty, and a frameless section hides with its only child. */
+.days:not(:has(.slot > *)),
+.wx-deck:not(:has(.slot > *)),
+.tasks:not(:has(.body > *)),
+.quote:not(:has(.body > *)) {
   visibility: hidden;
 }
 
-#day-today:has(.wx:empty) .tab.aux {
-  visibility: hidden;
-}
-
-.tasks:not(:has(.body > *)) {
+.days:has(#cal-today:empty) > .tab:not(.aux),
+.days:has(#cal-tomorrow:empty) > .tab.aux {
   visibility: hidden;
 }
 
@@ -221,23 +227,23 @@ body.off #root {
   font-family: var(--pixel);
   /* Press Start 2P is an 8px-grid face: render at integer multiples only. */
   font-size: 16px;
-  letter-spacing: 0.26em;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--fg-3);
-  padding-bottom: 48px;
+  padding-bottom: 26px;
 }
 
 .navi {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 16px;
   color: var(--fg-2);
 }
 
 .emblem {
   flex: none;
-  width: 46px;
-  height: 46px;
+  width: 32px;
+  height: 32px;
   fill: none;
   stroke: var(--fg-3);
 }
@@ -277,43 +283,51 @@ body.off #root {
 .net {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 14px;
 }
 
 .net .sep {
   color: var(--fg-4);
 }
 
-/* --------------------------------------------------------------- masthead */
+/* ------------------------------------------------------------ top cluster */
+
+/* Clock and weather occupy the two upper corners; the wide gap between them
+   is deliberate — it is the first of the mirror's reflection space. */
+.deck {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 40px;
+}
 
 .clock {
-  font-size: 176px;
+  font-size: 144px;
   line-height: 0.92;
   letter-spacing: 0.01em;
+  white-space: nowrap;
   color: var(--fg);
 }
 
 .dateline {
-  padding-top: 16px;
-  font-size: 30px;
+  padding-top: 10px;
+  font-size: 24px;
   letter-spacing: 0.14em;
   color: var(--fg-3);
 }
 
-/* --------------------------------------------------------------- day deck */
-
-.days {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 56px;
-  padding-top: 76px;
+/* Whole weather readout: today (icon + temp, condition, HP range) stacked
+   over one tomorrow line, right-aligned against the panel edge. */
+.wx-deck {
+  flex: none;
+  text-align: right;
 }
 
-/* Weather summary at the top of each day column. */
 .wx-now {
   display: flex;
   align-items: center;
-  gap: 26px;
+  justify-content: flex-end;
+  gap: 16px;
 }
 
 .wxicon {
@@ -323,24 +337,28 @@ body.off #root {
 
 .wx-now > .wxicon {
   flex: none;
-  width: 88px;
-  height: 88px;
+  width: 54px;
+  height: 54px;
   color: var(--fg-3);
 }
 
+.wx-now.sm {
+  gap: 10px;
+}
+
 .wx-now.sm > .wxicon {
-  width: 68px;
-  height: 68px;
+  width: 32px;
+  height: 32px;
 }
 
 .wx-now .temp {
-  font-size: 96px;
+  font-size: 68px;
   line-height: 0.9;
   color: var(--fg);
 }
 
 .wx-now .hilo {
-  font-size: 48px;
+  font-size: 30px;
   line-height: 1;
   color: var(--fg-2);
 }
@@ -353,11 +371,31 @@ body.off #root {
   color: var(--muted);
 }
 
+/* "tmr" marker on the tomorrow line — the label a second tab would carry. */
+.wx-now .lbl {
+  font-family: var(--pixel);
+  font-size: 16px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--fg-4);
+}
+
+.wx.next:not(:empty) {
+  margin-top: 14px;
+}
+
+/* Bounded so "severe thunderstorm" cannot widen the readout into the clock
+   when the pixel faces are missing and the wide monospace floor is in use. */
 .cond-text {
-  padding-top: 14px;
-  font-size: 26px;
+  max-width: 230px;
+  margin-left: auto;
+  padding-top: 8px;
+  font-size: 20px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--fg-3);
 }
 
@@ -366,21 +404,22 @@ body.off #root {
 .hp {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-top: 22px;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 14px;
 }
 
 .hp .rv {
-  font-size: 26px;
+  font-size: 19px;
   color: var(--muted);
 }
 
 .hp-bar {
   display: flex;
   gap: 3px;
-  width: 224px;
-  height: 18px;
-  padding: 3px;
+  width: 132px;
+  height: 13px;
+  padding: 2px;
   border: 2px solid var(--line);
   transform: skewX(-18deg);
 }
@@ -394,11 +433,14 @@ body.off #root {
   background: rgba(216, 248, 255, 0.5);
 }
 
-/* Agenda under the weather summary, split by a thin rule when both exist. */
-.slot.wx:not(:empty) + .slot.cal:not(:empty) {
+/* --------------------------------------------------------- agenda frame */
+
+/* The only frame in the top band: two agenda columns, one window. */
+.days {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
   margin-top: 32px;
-  padding-top: 32px;
-  border-top: 1px solid var(--line-dim);
 }
 
 .agenda {
@@ -408,25 +450,39 @@ body.off #root {
 .agenda li {
   position: relative;
   display: grid;
-  grid-template-columns: 106px 1fr;
-  gap: 16px;
-  padding-bottom: 22px;
-  font-size: 27px;
-  line-height: 1.25;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 12px;
+  padding-bottom: 10px;
+  font-size: 22px;
+  line-height: 1.2;
   color: var(--fg-2);
+}
+
+.agenda li:last-child {
+  padding-bottom: 0;
+}
+
+/* One row per event and per task, always: a wrapped title would push its band
+   into the reflection, and a truncated title still reads from five feet. */
+.agenda .n,
+.chip .t {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .agenda .t {
   color: var(--muted);
-  font-size: 22px;
+  font-size: 18px;
   letter-spacing: 0.06em;
-  padding-top: 3px;
+  padding-top: 2px;
 }
 
 .agenda li.allday .t {
-  font-size: 17px;
+  font-size: 14px;
   letter-spacing: 0.2em;
   text-transform: uppercase;
+  padding-top: 4px;
 }
 
 .agenda li.past,
@@ -435,11 +491,11 @@ body.off #root {
 }
 
 .more {
-  font-size: 18px;
+  font-size: 15px;
   letter-spacing: 0.24em;
   text-transform: uppercase;
   color: var(--fg-4);
-  padding-top: 6px;
+  padding-top: 8px;
 }
 
 /* BN cursor: right-pointing selection arrow on the "current" row, with the
@@ -447,13 +503,13 @@ body.off #root {
 .sel::before {
   content: '';
   position: absolute;
-  left: -26px;
-  top: 9px;
+  left: -17px;
+  top: 7px;
   width: 0;
   height: 0;
-  border-left: 10px solid var(--fg-3);
-  border-top: 7px solid transparent;
-  border-bottom: 7px solid transparent;
+  border-left: 8px solid var(--fg-3);
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
   animation: cursor-blink 1.4s steps(1, end) infinite;
 }
 
@@ -467,44 +523,42 @@ body.off #root {
   }
 }
 
-/* ------------------------------------------------------------ lower deck */
+/* ----------------------------------------------------------- bottom band */
 
-.lower {
+/* Both blocks sit on the bottom edge so the band stays as shallow as its
+   tallest member — the slack rides up into the void, never down. */
+.band {
   display: grid;
-  grid-template-columns: 1fr 470px;
-  padding-bottom: 56px;
-}
-
-/* Tasks stay lower-right; the empty left cell is reflection space. */
-.lower .tasks {
-  grid-column: 2;
+  grid-template-columns: 1fr 440px;
+  gap: 44px;
+  align-items: end;
 }
 
 .tasks .frame {
-  opacity: 0.38;
+  opacity: 0.34;
 }
 
 /* Chip cards: rectangular tile, code-letter square on the left, dim lines. */
 .chips {
   list-style: none;
   display: grid;
-  gap: 16px;
+  gap: 10px;
 }
 
 .chip {
   position: relative;
   display: grid;
-  grid-template-columns: 36px 1fr;
-  gap: 20px;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 14px;
   align-items: center;
-  padding: 11px 18px;
+  padding: 8px 12px;
   border: 1px solid var(--line-dim);
   border-left-color: var(--line);
 }
 
 .chip .code {
-  width: 34px;
-  height: 34px;
+  width: 26px;
+  height: 26px;
   border: 1px solid var(--line);
   display: flex;
   align-items: center;
@@ -515,28 +569,34 @@ body.off #root {
 }
 
 .chip .t {
-  font-size: 27px;
-  line-height: 1.25;
+  font-size: 21px;
+  line-height: 1.2;
   color: var(--fg-2);
 }
 
 .chip.sel::before {
   top: 50%;
-  margin-top: -7px;
+  margin-top: -6px;
 }
 
 /* ------------------------------------------------------------------ quote */
 
+/* Frameless: one sentence does not need a window. Clamped so a long quote
+   cannot push the band up into the reflection. */
 .quote blockquote {
-  font-size: 30px;
-  line-height: 1.38;
+  font-size: 22px;
+  line-height: 1.36;
   color: var(--fg-3);
-  max-width: 780px;
+  max-width: 480px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
 }
 
 .quote .by {
-  padding-top: 18px;
-  font-size: 19px;
+  padding-top: 12px;
+  font-size: 15px;
   letter-spacing: 0.28em;
   text-transform: uppercase;
   color: var(--muted);
@@ -547,16 +607,18 @@ body.off #root {
 }
 
 .credit {
-  padding-top: 24px;
-  font-size: 13px;
+  padding-top: 14px;
+  font-size: 11px;
   letter-spacing: 0.2em;
   color: rgba(216, 248, 255, 0.07);
 }
 
 /* ------------------------------------------------- sparse centre (face) */
 
+/* The point of the whole pass: a guaranteed floor of black, frameless glass
+   between the two bands, whatever the modules are holding. */
 .void {
-  min-height: 240px;
+  min-height: 700px;
 }
 
 /* ------------------------------------------------------------- stale dot */
