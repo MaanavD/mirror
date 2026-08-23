@@ -123,6 +123,7 @@ export const config = {
     calendarMs: 5 * MINUTE,
     notionMs: 5 * MINUTE,
     leavebyMs: 10 * MINUTE,
+    aqiMs: 30 * MINUTE,
     // How often staleness is re-evaluated (and the dim dot re-decided).
     tickMs: 30_000,
   },
@@ -135,6 +136,7 @@ export const config = {
     leavebyMs: 15 * MINUTE,
     quoteMs: 36 * 60 * MINUTE,
     spotifyMs: 2 * MINUTE,
+    aqiMs: 60 * MINUTE,
   },
 };
 

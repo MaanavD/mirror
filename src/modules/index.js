@@ -1,4 +1,5 @@
 import astroModule from './astro.js';
+import aqiModule from './aqi.js';
 import calendarModule from './calendar.js';
 import leavebyModule from './leaveby.js';
 import nanoleafModule from './nanoleaf.js';
@@ -13,5 +14,6 @@ import weatherModule from './weather.js';
  */
 export const modules = [weatherModule, astroModule, calendarModule, quoteModule, notionModule, nanoleafModule, spotifyModule];
 export const modules = [weatherModule, calendarModule, leavebyModule, quoteModule, notionModule, nanoleafModule, spotifyModule];
+export const modules = [weatherModule, aqiModule, calendarModule, quoteModule, notionModule, nanoleafModule, spotifyModule];
 
 export default modules;

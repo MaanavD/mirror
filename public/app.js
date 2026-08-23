@@ -40,6 +40,7 @@
   const bodies = {
     weather: [q('#wx-today'), q('#wx-tomorrow')],
     astro: [q('#astro-line')],
+    aqi: [q('#aqi-chip')],
     calendar: [q('#cal-today'), q('#cal-tomorrow')],
     quote: [q('#quote .body')],
     notion: [q('#notion .body')],
@@ -481,11 +482,19 @@
   function renderLeaveby(target, data) {
     if (!data || !data.eventTitle || !data.leaveBy) return;
     target.append(el('span', null, `\u25B6 LEAVE BY ${data.leaveBy} \u00B7 ${data.driveMin} MIN DRIVE`));
+  function renderAqi([target], data) {
+    if (!data || data.aqi === null || data.aqi === undefined) return;
+    if (data.aqi < 60) return;
+    const chip = el('div', `aqi-chip ${data.level}`);
+    chip.append(el('span', 'aqi-label', `AQI ${data.aqi}`));
+    chip.append(el('span', 'aqi-level', data.level.replace('-', ' ')));
+    target.append(chip);
   }
 
   const renderers = {
     weather: renderWeather,
     astro: renderAstro,
+    aqi: renderAqi,
     calendar: renderCalendar,
     quote: renderQuote,
     notion: renderTodos,
