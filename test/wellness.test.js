@@ -143,7 +143,7 @@ test('wellness is registered below countdown and stays in the right rail', () =>
   assert.ok(railAt < countdownAt && countdownAt < wellnessAt && wellnessAt < faceAt);
   assert.match(app, /wellness:\s*\[q\('#wellness-line'\)\]/);
   assert.match(app, /wellness:\s*renderWellness/);
-  assert.match(css, /\.wellness-window\s*\{[\s\S]*margin-left:\s*100px/);
+  assert.match(css, /\.wellness-window\s*\{[\s\S]*margin-left:\s*24px/);
   assert.match(css, /\.wellness-subline\s*\{[\s\S]*font-size:\s*16px[\s\S]*text-overflow:\s*ellipsis/);
 });
 

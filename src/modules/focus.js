@@ -3,6 +3,10 @@ import { calendarModule } from './calendar.js';
 
 const pad = (n) => String(n).padStart(2, '0');
 
+/** Calendar events carry ISO `start`/`end`; normalize to ms once, here. */
+const startOf = (e) => e.startMs ?? Date.parse(e.start);
+const endOf = (e) => e.endMs ?? Date.parse(e.end);
+
 /** "3:00 PM" 12h in `timeZone`. */
 export function formatTime12h(date, timeZone) {
   const p = zonedParts(date, timeZone);
@@ -13,15 +17,15 @@ export function formatTime12h(date, timeZone) {
 
 /** The timed event currently in progress (started, not yet ended). */
 export function currentEvent(events, nowMs) {
-  return events.find((e) => !e.allDay && e.startMs <= nowMs && e.endMs > nowMs) ?? null;
+  return events.find((e) => !e.allDay && startOf(e) <= nowMs && endOf(e) > nowMs) ?? null;
 }
 
 /** The next timed event strictly after `now`. */
 export function nextEvent(events, nowMs) {
   return (
     events
-      .filter((e) => !e.allDay && e.startMs > nowMs)
-      .sort((a, b) => a.startMs - b.startMs)[0] ?? null
+      .filter((e) => !e.allDay && startOf(e) > nowMs)
+      .sort((a, b) => startOf(a) - startOf(b))[0] ?? null
   );
 }
 
@@ -38,12 +42,12 @@ export function shapeFocus(calendarData, { now = new Date(), timeZone = 'UTC' } 
 
   return {
     now: current
-      ? { title: current.title, ends: formatTime12h(new Date(current.endMs), timeZone) }
+      ? { title: current.title, ends: formatTime12h(new Date(endOf(current)), timeZone) }
       : null,
     next: next
       ? {
           title: next.title,
-          inMin: Math.max(0, Math.round((next.startMs - nowMs) / 60_000)),
+          inMin: Math.max(0, Math.round((startOf(next) - nowMs) / 60_000)),
         }
       : null,
   };

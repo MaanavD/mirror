@@ -9,11 +9,11 @@ test('variant is stable per id and within range', () => {
   assert.ok(variantFor('abc') >= 0 && variantFor('abc') < 3);
 });
 
-test('caps at 6 visible with the remainder counted', () => {
+test('caps at 4 visible with the remainder counted', () => {
   const v = toViruses(mk(9));
-  assert.equal(v.viruses.length, 6);
+  assert.equal(v.viruses.length, 4);
   assert.equal(v.total, 9);
-  assert.equal(v.more, 3);
+  assert.equal(v.more, 5);
 });
 
 test('empty list => nothing to bust', () => {

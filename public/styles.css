@@ -944,10 +944,7 @@ body.off #root {
   overflow: hidden;
 }
 
-/* CALM keeps the PET glyph as a quiet status light; NIGHT removes the slot. */
-body[data-mode='calm'] #wellness-line .wellness-subline {
-  display: none;
-}
+/* NIGHT removes the slot entirely; the subline stays visible in calm. */
 
 body[data-mode='night'] #wellness-line {
   visibility: hidden;
@@ -955,8 +952,8 @@ body[data-mode='night'] #wellness-line {
 
 .wellness-window {
   min-width: 0;
-  width: calc(100% - 100px);
-  margin-left: 100px;
+  width: calc(100% - 24px);
+  margin-left: 24px;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -2022,8 +2019,9 @@ body.night #hermy-dialogue {
    Top of the bottom band, full width: the NOW / NEXT readout. A single
    truncated line — when there is nothing to focus on it is simply absent. */
 .focus-line {
+  flex: none;
   min-height: 0;
-  margin-bottom: 14px;
+  margin-top: 14px;
   text-align: center;
   overflow: hidden;
 }
@@ -2034,10 +2032,11 @@ body.night #hermy-dialogue {
 
 .focus-text {
   font-family: var(--pixel);
-  /* Press Start 2P is an 8px-grid face: 24px keeps it on the grid. */
-  font-size: 24px;
+  /* Press Start 2P is an 8px-grid face: 16px keeps the whole NOW/NEXT line
+     inside the 1000px column without clipping. */
+  font-size: 16px;
   line-height: 1;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--fg-2);
   white-space: nowrap;
@@ -2075,6 +2074,9 @@ body.night #hermy-dialogue {
    Bottom-band right cell: the daily chip drop, or the mystery fact on its
    weekly day. Shallower frame; one line of chip stat or one scrambled line. */
 .s3 {
+  /* Lives at the bottom of the right rail (under the wellness line): give the
+     skewed tab headroom, and clear the rail edge on the right. */
+  margin-top: 40px;
   padding: 24px 20px 16px 28px;
 }
 
@@ -2157,6 +2159,12 @@ body.night #hermy-dialogue {
 .hermy-caption {
   min-height: 0;
   margin-top: 2px;
+  /* The tasks tab below overhangs its frame by 16px: leave room so the
+     caption's descenders never collide with the skewed tab. */
+  margin-bottom: 18px;
+  /* Right-align with the sprite so the caption clears the tab's x-range. */
+  align-self: flex-end;
+  margin-right: 16px;
   font-family: var(--pixel);
   font-size: 16px;
   line-height: 1.2;

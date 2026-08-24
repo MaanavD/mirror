@@ -617,7 +617,7 @@ import { createModeMachine } from './mode.js';
   const codeLetter = (area) => (String(area ?? '').match(/[a-z0-9]/i)?.[0] ?? '·').toUpperCase();
 
   // F41 virus busting: each open Notion task is a Mettaur-class virus sprite +
-  // truncated name. >6 tasks => 6 + "+N VIRUSES". Empty => "AREA CLEAN".
+  // truncated name. >4 tasks => 4 + "+N VIRUSES". Empty => "AREA CLEAN".
   const VIRUS_STROKE = ['#f83818', '#10f8f8', '#f8d018']; // alert / cyan / amber
 
   // Original line-art virus (NOT ripped assets): a dome, two eyes, a mouth that

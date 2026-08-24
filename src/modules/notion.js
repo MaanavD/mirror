@@ -13,7 +13,7 @@ import { fetchJson } from '../http.js';
 
 export const NOTION_API = 'https://api.notion.com/v1';
 export const VISIBLE_CAP = 8;
-export const VIRUS_CAP = 6;
+export const VIRUS_CAP = 4;
 
 const VIRUS_VARIANTS = 3;
 
