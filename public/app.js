@@ -653,7 +653,12 @@ import { createModeMachine } from './mode.js';
   }
 
   function renderLeaveby(target, data) {
-    if (!data || !data.eventTitle || !data.leaveBy) return;
+    if (!data) return;
+    if (data.label) {
+      target.append(el('span', null, data.label));
+      return;
+    }
+    if (!data.eventTitle || !data.leaveBy) return;
     target.append(el('span', null, `\u25B6 LEAVE BY ${data.leaveBy} \u00B7 ${data.driveMin} MIN DRIVE`));
   }
 
