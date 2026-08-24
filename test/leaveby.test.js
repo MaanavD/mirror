@@ -137,7 +137,7 @@ test('geocode normalizes Nominatim response and caches', async () => {
   assert.equal(r1.lat, 47.61);
   assert.equal(r1.lon, -122.33);
   assert.equal(calls.length, 1);
-  assert.ok(calls[0].headers['User-Agent'] === 'smart-mirror/1.0');
+  assert.ok(calls[0].headers['User-Agent'] === 'mirror-dashboard/1.0 (personal)');
 
   // Second call should hit cache
   const r2 = await geocode('123 Main St', { nowMs: Date.now() + 3_000, fetchFn: fakeFetch });
