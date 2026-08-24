@@ -135,6 +135,9 @@
       <div id="hermy-dialogue" class="mount"></div>
 
       <div class="bottom-band">
+        <!-- S1 FOCUS LINE: top of the bottom band, full width. NOW / NEXT. -->
+        <div class="focus-line" id="focus-line" data-module="focus"></div>
+
         <!-- Bottom band: the Nanoleaf chip readout sits directly above the
              quote at lower-left; the task frame supplies the shared top edge. -->
         <div class="band">
@@ -154,6 +157,15 @@
             <!-- Hermy.EXE idle avatar: 12-frame hand-built sprite sheet, sitting
                  directly on the top edge of the tasks frame. -->
             <div id="hermy" class="hermy" aria-hidden="true"></div>
+            <!-- S4: Hermy commentary + enemy nameplate (weather battle). -->
+            <div id="hermy-enemy" class="hermy-enemy" aria-hidden="true"></div>
+            <div id="hermy-caption" class="hermy-caption"></div>
+            <!-- S3 DATA CARD: chip drop (daily) or mystery (weekly day). -->
+            <section class="win s3" id="s3" data-module="s3">
+              <div class="frame"></div>
+              <span class="tab"><span>data</span></span>
+              <div class="s3-body"></div>
+            </section>
             <section class="win tasks" id="notion" data-module="notion">
               <div class="frame"></div>
               <span class="tab"><span>tasks</span></span>

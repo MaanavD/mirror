@@ -24,6 +24,48 @@ export function buildUrl({ lat, lon, timezone }) {
 
 const round = (v) => (Number.isFinite(Number(v)) ? Math.round(Number(v)) : null);
 
+// F6 rain sparkline: minutely_15 precipitation over the next 2h, bucketed into
+// 8 quarter-hour bars and rendered as block glyphs. Only painted when some
+// bucket holds rain.
+const SPARK_BUCKETS = 8;
+const SPARK_BUCKET_MIN = 15;
+const SPARK_LEVELS = ['▁', '▂', '▃', '▅', '▇'];
+
+function sparkLevel(mm) {
+  if (!Number.isFinite(mm) || mm <= 0) return 0;
+  if (mm < 0.5) return 1;
+  if (mm < 2) return 2;
+  if (mm < 6) return 3;
+  return 4;
+}
+
+/**
+ * Open-Meteo minutely_15 precipitation -> 8-bucket sparkline for the next 2h.
+ * Returns { bars, max } (bars is a string of block glyphs) or null when no rain
+ * is expected in the window, so the UI keeps the weather block dry.
+ */
+export function shapeRainSparkline(raw, { now = new Date(), timeZone = 'UTC' } = {}) {
+  const times = raw?.minutely_15?.time;
+  const prec = raw?.minutely_15?.precipitation;
+  if (!Array.isArray(times) || !Array.isArray(prec)) return null;
+
+  const buckets = new Array(SPARK_BUCKETS).fill(0);
+  for (let i = 0; i < times.length; i += 1) {
+    const at = parseFloatingLocal(times[i], timeZone);
+    if (!at) continue;
+    const minutesFrom = (at.getTime() - now.getTime()) / 60_000;
+    if (minutesFrom < -7.5) continue; // already well past
+    const idx = Math.floor(minutesFrom / SPARK_BUCKET_MIN);
+    if (idx < 0 || idx >= SPARK_BUCKETS) continue;
+    const mm = Number(prec[i]);
+    if (Number.isFinite(mm)) buckets[idx] += mm;
+  }
+
+  if (buckets.every((b) => b <= 0)) return null;
+  const bars = buckets.map((b) => SPARK_LEVELS[sparkLevel(b)]).join('');
+  return { bars, max: Number(Math.max(...buckets).toFixed(1)) };
+}
+
 /**
  * From Open-Meteo minutely_15 precipitation, find the first 15-minute slot
  * with >= `threshold` mm in the next `windowMin` minutes. Returns
@@ -127,6 +169,7 @@ export function shapeWeather(raw, { now = new Date(), timeZone = 'UTC' } = {}) {
     tomorrow,
     hours,
     rain: pickRain(raw, { now, timeZone }),
+    rain2h: shapeRainSparkline(raw, { now, timeZone }),
   };
 }
 
@@ -158,7 +201,18 @@ export function mockRaw({ now = new Date(), timeZone = 'UTC' } = {}) {
   const tomorrow = localDateKey(new Date(dayStart.getTime() + 26 * 3_600_000), timeZone);
   const nowHour = zonedParts(now, timeZone).hour;
 
+  // Quarter-hour rain so the F6 sparkline has something to draw in MOCK.
+  const minutely = [];
+  const minPrec = [];
+  for (let i = 0; i < 8; i += 1) {
+    const at = new Date(now.getTime() + i * 15 * 60_000);
+    const p = zonedParts(at, timeZone);
+    minutely.push(`${p.year}-${pad(p.month)}-${pad(p.day)}T${pad(p.hour)}:${pad(p.minute)}`);
+    minPrec.push(p.hour >= 14 && p.hour <= 16 ? 1.4 : 0.1);
+  }
+
   return {
+    minutely_15: { time: minutely, precipitation: minPrec },
     current: {
       temperature_2m: Number((11 + 6 * Math.sin(((nowHour - 4) / 24) * Math.PI * 2)).toFixed(1)),
       weather_code: nowHour >= 13 && nowHour <= 20 ? 63 : 2,

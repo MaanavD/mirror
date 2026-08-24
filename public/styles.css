@@ -1957,6 +1957,258 @@ body.night #hermy-dialogue {
   }
 }
 
+/* ----------------------------------------------------------- S1 focus line
+
+   Top of the bottom band, full width: the NOW / NEXT readout. A single
+   truncated line — when there is nothing to focus on it is simply absent. */
+.focus-line {
+  min-height: 0;
+  margin-bottom: 14px;
+  text-align: center;
+  overflow: hidden;
+}
+
+.focus-line:empty {
+  display: none;
+}
+
+.focus-text {
+  font-family: var(--pixel);
+  /* Press Start 2P is an 8px-grid face: 24px keeps it on the grid. */
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--fg-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* F6 rain sparkline, painted only when it is actually raining. */
+.wx-spark {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.wx-spark-label {
+  font-family: var(--pixel);
+  font-size: 16px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--fg-4);
+}
+
+.wx-spark-bars {
+  font-size: 32px;
+  line-height: 1;
+  letter-spacing: 0.12em;
+  color: var(--fg-2);
+}
+
+/* --------------------------------------------------------- S3 data card
+
+   Bottom-band right cell: the daily chip drop, or the mystery fact on its
+   weekly day. Shallower frame; one line of chip stat or one scrambled line. */
+.s3 {
+  padding: 24px 20px 16px 28px;
+}
+
+.s3 .frame {
+  opacity: 0.3;
+}
+
+.s3-body {
+  min-height: 0;
+}
+
+.s3-body:empty {
+  display: none;
+}
+
+.s3-chip {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.s3-icon {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  fill: none;
+  stroke: currentColor;
+  color: var(--fg-3);
+}
+
+.s3-meta {
+  min-width: 0;
+}
+
+.s3-name {
+  font-family: var(--pixel);
+  font-size: 16px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--fg-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.s3-stat {
+  font-size: 24px;
+  line-height: 1.1;
+  color: var(--fg-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.s3-mystery {
+  text-align: left;
+}
+
+.s3-q {
+  font-family: var(--pixel);
+  font-size: 32px;
+  letter-spacing: 0.3em;
+  color: var(--alert);
+}
+
+.s3-scrambled {
+  font-family: var(--pixel);
+  font-size: 16px;
+  letter-spacing: 0.2em;
+  color: var(--fg-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ----------------------------------------------------- Hermy reactions (S4)
+
+   Commentary caption under the sprite, plus the enemy nameplate that appears
+   during a weather battle. */
+.hermy-caption {
+  min-height: 0;
+  margin-top: 2px;
+  font-family: var(--pixel);
+  font-size: 16px;
+  line-height: 1.2;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.hermy-caption:empty {
+  display: none;
+}
+
+.hermy-enemy {
+  font-family: var(--pixel);
+  font-size: 16px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--alert);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  display: none;
+}
+
+.hermy-enemy.on {
+  display: block;
+}
+
+/* Weather battle = the sprite pulses and takes a danger tint. */
+.hermy.battle {
+  filter: drop-shadow(0 0 2px rgba(248, 56, 24, 0.6));
+  animation: hermy-battle 0.5s steps(2) infinite;
+}
+
+@keyframes hermy-battle {
+  0%,
+  100% {
+    opacity: 0.82;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ----------------------------------------------------- F41 virus busting
+
+   Each open task is a Mettaur-class virus: sprite + truncated name. A removed
+   task flashes twice then disappears. */
+.viruses {
+  list-style: none;
+  display: grid;
+  gap: 7px;
+}
+
+.virus {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.virus-sprite {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+}
+
+.vname {
+  font-size: 24px;
+  line-height: 1.1;
+  color: var(--fg-2);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.virus.deleting {
+  animation: virus-flash 1.3s steps(2) 1;
+}
+
+@keyframes virus-flash {
+  0% {
+    opacity: 1;
+  }
+  25% {
+    opacity: 0.1;
+  }
+  50% {
+    opacity: 1;
+  }
+  75% {
+    opacity: 0.1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.clean {
+  font-family: var(--pixel);
+  font-size: 16px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--fg-4);
+}
+
 /* ------------------------------------------------------ prefers-reduced-motion
 
    The whole wow pass is opt-out in one place: no rotation, no falling rain, no

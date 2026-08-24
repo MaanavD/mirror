@@ -13,6 +13,30 @@ import { fetchJson } from '../http.js';
 
 export const NOTION_API = 'https://api.notion.com/v1';
 export const VISIBLE_CAP = 8;
+export const VIRUS_CAP = 6;
+
+const VIRUS_VARIANTS = 3;
+
+/** Stable per-id variant so a task keeps its sprite across refreshes. */
+export function variantFor(id) {
+  let h = 2166136261;
+  const s = String(id ?? '');
+  for (let i = 0; i < s.length; i += 1) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0) % VIRUS_VARIANTS;
+}
+
+/**
+ * Open Notion tasks -> Mettaur-class virus list (F41). Flat (no area grouping),
+ * capped at VIRUS_CAP visible with the remainder reported as `more`.
+ */
+export function toViruses(todos, { cap = VIRUS_CAP } = {}) {
+  const all = (todos ?? []).map((t) => ({ id: t.id, name: t.title, variant: variantFor(t.id) }));
+  const shown = all.slice(0, cap);
+  return { viruses: shown, total: all.length, more: Math.max(0, all.length - shown.length) };
+}
 
 const AREA_NAME = /area|categor|bucket|domain|life|pillar/i;
 const DONE_NAME = /done|complete|finish|shipped/i;
@@ -130,7 +154,18 @@ export function groupTodos(todos, { cap = VISIBLE_CAP } = {}) {
 }
 
 function notReady(reason) {
-  return { configured: false, stub: true, reason, groups: [], visible: 0, total: 0, more: 0 };
+  return {
+    configured: false,
+    stub: true,
+    reason,
+    groups: [],
+    visible: 0,
+    total: 0,
+    more: 0,
+    viruses: [],
+    virusTotal: 0,
+    virusMore: 0,
+  };
 }
 
 let schemaCache = null;
@@ -188,12 +223,33 @@ export const notionModule = {
       timeoutMs: config.fetchTimeoutMs,
     });
 
-    const grouped = groupTodos(toTodos(payload?.results, schema.props));
-    return { configured: true, stub: false, database: schema.title, ...grouped };
+    const todos = toTodos(payload?.results, schema.props);
+    const grouped = groupTodos(todos);
+    const vir = toViruses(todos);
+    return {
+      configured: true,
+      stub: false,
+      database: schema.title,
+      ...grouped,
+      viruses: vir.viruses,
+      virusTotal: vir.total,
+      virusMore: vir.more,
+    };
   },
 
   mock() {
-    return { configured: true, stub: true, database: 'todos (mock)', ...mockTodos() };
+    const grouped = mockTodos();
+    const todos = grouped.groups.flatMap((g) => g.items.map((i) => ({ id: i.id, title: i.title })));
+    const vir = toViruses(todos);
+    return {
+      configured: true,
+      stub: true,
+      database: 'todos (mock)',
+      ...grouped,
+      viruses: vir.viruses,
+      virusTotal: vir.total,
+      virusMore: vir.more,
+    };
   },
 };
 

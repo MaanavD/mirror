@@ -56,9 +56,16 @@ import { createModeMachine } from './mode.js';
     calendar: [q('#cal-today'), q('#cal-tomorrow')],
     quote: [q('#quote .body')],
     notion: [q('#notion .body')],
+    focus: [q('#focus-line')],
     nanoleaf: [q('#nanoleaf .body')],
     news: [q('#news .body')],
   };
+  // S3 (chip drop / mystery) and Hermy reactions are coordinated across modules
+  // in apply(), not through the per-module `bodies` map.
+  const s3El = q('#s3 .s3-body');
+  const hermyEl = q('#hermy');
+  const hermyEnemyEl = q('#hermy-enemy');
+  const hermyCaptionEl = q('#hermy-caption');
   const nowPlayingEl = q('#now-playing');
   const leavebyEl = q('#leaveby');
 
@@ -332,6 +339,15 @@ import { createModeMachine } from './mode.js';
       const mm = String(when.getMinutes()).padStart(2, '0');
       rainEl.append(el('div', 'wx-rain-chip', `// RAIN ${hh}:${mm}`));
     }
+
+    // F6 rain sparkline: 8 block-glyph buckets over the next 2h. Only painted
+    // when at least one bucket holds rain (the server already nulls it dry).
+    if (data.rain2h && data.rain2h.bars) {
+      const spark = el('div', 'wx-spark');
+      spark.append(el('span', 'wx-spark-label', 'RAIN 2H'));
+      spark.append(el('span', 'wx-spark-bars', data.rain2h.bars));
+      today.append(spark);
+    }
   }
 
   // Sun up / sun down / UV, under the clock. The astro payload still carries the
@@ -395,6 +411,17 @@ import { createModeMachine } from './mode.js';
       strip.append(cell);
     }
     target.append(strip);
+  }
+
+  // S1 FOCUS LINE: "NOW: <event> · ENDS 3:00PM   NEXT: <event> IN 45M". A single
+  // truncated line; hidden entirely when there is nothing to focus on.
+  function renderFocus([target], data) {
+    if (!data) return;
+    const parts = [];
+    if (data.now) parts.push(`NOW: ${data.now.title} · ENDS ${data.now.ends}`);
+    if (data.next) parts.push(`NEXT: ${data.next.title} IN ${data.next.inMin}M`);
+    if (!parts.length) return;
+    target.append(el('span', 'focus-text', parts.join('   ')));
   }
 
   // "9:00am" -> "9a", "9:30am" -> "9:30a": buys the title ~4 characters on the
@@ -569,29 +596,81 @@ import { createModeMachine } from './mode.js';
   // Chip-code letter for an area, e.g. "Health / sleep" -> "H".
   const codeLetter = (area) => (String(area ?? '').match(/[a-z0-9]/i)?.[0] ?? '·').toUpperCase();
 
-  // Chip-card rows: one framed tile per task, area initial as the chip code.
-  function renderTodos([target], data) {
-    if (!data || !data.groups?.length) return;
-    const list = el('ul', 'chips');
-    let shown = 0;
-    let hidden = 0;
-    for (const group of data.groups) {
-      for (const item of group.items) {
-        if (shown >= TODOS_SHOWN) {
-          hidden += 1;
-          continue;
-        }
-        const li = el('li', 'chip');
-        li.append(el('span', 'code', codeLetter(group.area)));
-        li.append(el('span', 't', item.title));
-        list.append(li);
-        shown += 1;
+  // F41 virus busting: each open Notion task is a Mettaur-class virus sprite +
+  // truncated name. >6 tasks => 6 + "+N VIRUSES". Empty => "AREA CLEAN".
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const VIRUS_STROKE = ['#f83818', '#10f8f8', '#f8d018']; // alert / cyan / amber
+
+  // Original line-art virus (NOT ripped assets): a dome, two eyes, a mouth that
+  // changes with the variant.
+  function virusSprite(variant = 0) {
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('class', 'virus-sprite');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.style.color = VIRUS_STROKE[variant % 3];
+    const dome = document.createElementNS(SVG_NS, 'path');
+    dome.setAttribute('d', 'M3 16a9 9 0 0 1 18 0z');
+    dome.setAttribute('fill', 'none');
+    dome.setAttribute('stroke', 'currentColor');
+    dome.setAttribute('stroke-width', '1.8');
+    svg.append(dome);
+    for (const cx of [9, 15]) {
+      const eye = document.createElementNS(SVG_NS, 'circle');
+      eye.setAttribute('cx', cx);
+      eye.setAttribute('cy', 12);
+      eye.setAttribute('r', 1.6);
+      eye.setAttribute('fill', 'currentColor');
+      svg.append(eye);
+    }
+    const mouth = document.createElementNS(SVG_NS, 'path');
+    mouth.setAttribute(
+      'd',
+      variant === 1 ? 'M8 18l2-2 2 2 2-2 2 2' : 'M8 18h8',
+    );
+    mouth.setAttribute('stroke', 'currentColor');
+    mouth.setAttribute('stroke-width', '1.6');
+    mouth.setAttribute('fill', 'none');
+    svg.append(mouth);
+    return svg;
+  }
+
+  // Remembers virus identities between renders so a completed task can play a
+  // short deletion flash before it is gone.
+  let lastVirusNames = new Map();
+
+  function renderViruses([target], data) {
+    if (!data) return;
+    const viruses = data.viruses ?? [];
+    const currentIds = new Set(viruses.map((v) => v.id));
+
+    // Deletion flash for anything that disappeared since the last paint.
+    for (const [id, name] of lastVirusNames) {
+      if (!currentIds.has(id)) {
+        const flash = el('li', 'virus deleting');
+        flash.append(virusSprite(0));
+        flash.append(el('span', 'vname', name));
+        target.append(flash);
+        setTimeout(() => flash.remove(), 1300);
       }
     }
-    if (shown === 0) return;
+    lastVirusNames = new Map(viruses.map((v) => [v.id, v.name]));
+
+    const more = data.virusMore ?? data.more ?? 0;
+    if (viruses.length === 0 && more === 0) {
+      target.append(el('div', 'clean', 'AREA CLEAN'));
+      return;
+    }
+
+    const list = el('ul', 'viruses');
+    for (const v of viruses) {
+      const li = el('li', 'virus');
+      li.append(virusSprite(v.variant));
+      li.append(el('span', 'vname', v.name));
+      list.append(li);
+    }
     target.append(list);
-    const more = (data.more ?? 0) + hidden;
-    if (more > 0) target.append(el('div', 'more', `+${more} more`));
+    if (more > 0) target.append(el('div', 'more', `+${more} VIRUSES`));
   }
 
   // Each Nanoleaf light reads as ONE hex glyph (BN chip icon). Outline stays
@@ -725,7 +804,8 @@ import { createModeMachine } from './mode.js';
     aqi: renderAqi,
     calendar: renderCalendar,
     quote: renderQuote,
-    notion: renderTodos,
+    notion: renderViruses,
+    focus: renderFocus,
     nanoleaf: renderNanoleaf,
     news: renderNews,
   };
@@ -1033,6 +1113,95 @@ import { createModeMachine } from './mode.js';
     swapTimers[name] = setTimeout(paint, FADE_MS);
   }
 
+  // --------------------------------------------------- S3 data card (chip / mystery)
+
+  // Drawn pixel-ish line icons for the chip drop card, keyed by chip.icon.
+  const S3_ICONS = {
+    calendar: ['M4 6h16v14H4z', 'M4 10h16', 'M8 4v4', 'M16 4v4'],
+    air: ['M3 12h12', 'M15 9l4 3-4 3', 'M3 7h8', 'M3 17h8'],
+    fire: ['M12 3c3 4-1 5 0 8a3 3 0 1 1-4-2c1 2 1 3 4-6z'],
+    snow: ['M12 3v18', 'M5 7l14 10', 'M19 7L5 17'],
+    sun: [circleD(12, 12, 5), 'M12 2v3', 'M12 19v3', 'M2 12h3', 'M19 12h3', 'M5 5l2 2', 'M17 17l2 2', 'M19 5l-2 2', 'M7 17l-2 2'],
+    rain: ['M12 4a5 5 0 0 1 4 8', 'M8 16l-1 4', 'M15 16l-1 4'],
+    chip: ['M5 5h14v14H5z', 'M9 9h6v6H9z', 'M5 9v6M19 9v6M9 5v2M15 5v2'],
+    note: ['M6 4h9l3 3v13H6z', 'M9 12h6', 'M9 16h6'],
+    sleep: ['M21 12A9 9 0 1 1 11 3a7 7 0 0 0 10 9z'],
+    wind: ['M3 9h11a2 2 0 1 0-2-2', 'M3 14h15a2 2 0 1 1-2 2'],
+    moon: ['M16 4a8 8 0 1 0 0 16 6 6 0 0 1 0-16z'],
+  };
+
+  function s3Icon(name) {
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('class', 's3-icon');
+    svg.setAttribute('aria-hidden', 'true');
+    const paths = S3_ICONS[name] || S3_ICONS.chip;
+    for (const d of paths) {
+      const p = document.createElementNS(SVG_NS, 'path');
+      p.setAttribute('d', d);
+      p.setAttribute('fill', 'none');
+      p.setAttribute('stroke', 'currentColor');
+      p.setAttribute('stroke-width', '1.6');
+      p.setAttribute('stroke-linecap', 'round');
+      p.setAttribute('stroke-linejoin', 'round');
+      svg.append(p);
+    }
+    return svg;
+  }
+
+  // S3 holds one card: the mystery fact on its weekly day, else the daily chip.
+  function renderS3(chip, mystery) {
+    if (!s3El) return;
+    s3El.replaceChildren();
+    if (mystery && mystery.plain) {
+      const wrap = el('div', 's3-mystery');
+      wrap.append(el('div', 's3-q', mystery.glyphs));
+      wrap.append(el('div', 's3-scrambled', mystery.scrambled));
+      s3El.append(wrap);
+      return;
+    }
+    if (chip && chip.name) {
+      const wrap = el('div', 's3-chip');
+      wrap.append(s3Icon(chip.icon));
+      const meta = el('div', 's3-meta');
+      meta.append(el('div', 's3-name', chip.name));
+      meta.append(el('div', 's3-stat', chip.statLine));
+      wrap.append(meta);
+      s3El.append(wrap);
+    }
+  }
+
+  // ------------------------------------------------------------- Hermy reactions
+
+  let hermyData = null;
+  let hermyLineIdx = 0;
+  const HERMY_IDLE = ['SYSTEMS NOMINAL.', 'STANDING BY.', 'GLASS CLEAR.'];
+
+  function tickHermyCaption() {
+    if (!hermyCaptionEl) return;
+    const data = hermyData;
+    const pool = data?.lines?.length ? data.lines : HERMY_IDLE;
+    hermyCaptionEl.textContent = pool[hermyLineIdx % pool.length];
+    hermyLineIdx += 1;
+  }
+
+  function renderHermy(data) {
+    if (!hermyEl) return;
+    hermyData = data;
+    hermyLineIdx = 0;
+    hermyEl.classList.toggle('battle', Boolean(data?.battle));
+    if (hermyEnemyEl) {
+      if (data?.enemy) {
+        hermyEnemyEl.textContent = `VS ${data.enemy}`;
+        hermyEnemyEl.classList.add('on');
+      } else {
+        hermyEnemyEl.textContent = '';
+        hermyEnemyEl.classList.remove('on');
+      }
+    }
+    tickHermyCaption();
+  }
+
   // -------------------------------------------------------------- state
 
   function apply(state) {
@@ -1044,6 +1213,11 @@ import { createModeMachine } from './mode.js';
     const cal = modules.calendar?.data ?? null;
     latestCalendar = cal && cal.configured !== false ? cal : null;
     checkImminent();
+
+    // S4 Hermy reactions + S3 data card are coordinated across modules here.
+    renderHermy(modules.hermy?.data ?? null);
+    renderS3(modules.chipdrop?.data ?? null, modules.mystery?.data ?? null);
+
     if (leavebyEl) {
       const lbData = modules.leaveby?.data ?? null;
       leavebyEl.replaceChildren();
@@ -1467,6 +1641,9 @@ import { createModeMachine } from './mode.js';
     checkImminent();
   }, 1_000);
   bootAnimation(drawFrames);
+
+  // Hermy commentary line rotates every 8s (reactions, then idle lines).
+  setInterval(tickHermyCaption, 8000);
 
   // A kiosk left running for weeks accumulates renderer cruft; a nightly
   // reload while the panel is dark costs nothing.
