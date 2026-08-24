@@ -486,8 +486,11 @@ body.off #root {
 }
 
 /* Right rail: weather, then the agenda frame, then the leave-by chip, all
-   pinned to the panel edge and stacked top-down. */
+   pinned to the panel edge and stacked top-down. Spans both deck rows so the
+   countdown (column 1, row 2) cannot push it out of its column. */
 .rail {
+  grid-column: 2;
+  grid-row: 1 / span 2;
   min-width: 0;
   min-height: 0;
   display: flex;
@@ -882,6 +885,65 @@ body.off #root {
    the tabs use rather than the neutral ramp. */
 .astro-item.uv .astro-glyph {
   color: var(--amber-edge);
+}
+
+/* Days-until stack below the masthead clip line. Third child of the two-column
+   deck grid, so it is pinned explicitly: column 1, second row, with the rail
+   spanning both rows in column 2 — otherwise it would silently occupy the
+   rail's cell and push the whole right column down. It is the one piece of the
+   left column that prints below y=280, so its width is capped at 296px: the
+   corridor starts at x=340 and the column pads 40, leaving 300 of legal glass.
+   Rows stack vertically to stay inside that cap. Dimmer than astro because it
+   is anticipation, not action. */
+#countdown-line {
+  grid-column: 1;
+  grid-row: 2;
+  align-self: start;
+}
+
+#countdown-line:not(:empty) {
+  margin-top: 26px;
+}
+
+.countdown-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 296px;
+  overflow: hidden;
+}
+
+.countdown-item {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  white-space: nowrap;
+}
+
+/* The BN cursor glyph the calendar uses, recycled as the row marker. */
+.countdown-item::before {
+  content: '\25B8';
+  color: var(--fg-3);
+  font-size: 18px;
+}
+
+.countdown-label {
+  overflow: hidden;
+  font-size: 21px;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  text-overflow: ellipsis;
+}
+
+/* The number is the payload, so it takes the pixel face; 16px is the 8px-grid
+   step that keeps these rows quieter than the astro values above them. */
+.countdown-days {
+  font-family: var(--pixel);
+  font-size: 16px;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  color: var(--fg-2);
 }
 
 .astro-item.uv .astro-val {

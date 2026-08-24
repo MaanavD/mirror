@@ -50,6 +50,7 @@ import { createModeMachine } from './mode.js';
   const q = (selector) => document.querySelector(selector);
   const bodies = {
     astro: [q('#astro-line')],
+    countdown: [q('#countdown-line')],
     aqi: [q('#aqi-chip')],
     weather: [q('#wx-today'), q('#wx-tomorrow'), q('#wx-rain')],
     calendar: [q('#cal-today'), q('#cal-tomorrow')],
@@ -382,6 +383,20 @@ import { createModeMachine } from './mode.js';
     target.append(strip);
   }
 
+  // Days-until line: "▸ SAN FRANCISCO 8D   ▸ SF MOVE 53D". "TODAY" beats "0D"
+  // on the one morning it matters.
+  function renderCountdown([target], data) {
+    if (!data?.items?.length) return;
+    const strip = el('div', 'countdown-strip');
+    for (const item of data.items.slice(0, 2)) {
+      const cell = el('span', `countdown-item ${item.kind}`);
+      cell.append(el('span', 'countdown-label', item.label));
+      cell.append(el('span', 'countdown-days', item.days === 0 ? 'TODAY' : `${item.days}D`));
+      strip.append(cell);
+    }
+    target.append(strip);
+  }
+
   // "9:00am" -> "9a", "9:30am" -> "9:30a": buys the title ~4 characters on the
   // narrow rail. Display-only; the server keeps the full label for leave-by.
   const compactTime = (label) =>
@@ -706,6 +721,7 @@ import { createModeMachine } from './mode.js';
   const renderers = {
     weather: renderWeather,
     astro: renderAstro,
+    countdown: renderCountdown,
     aqi: renderAqi,
     calendar: renderCalendar,
     quote: renderQuote,

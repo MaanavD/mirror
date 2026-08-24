@@ -80,6 +80,13 @@
             <div class="slot astro" id="astro-line"></div>
           </div>
 
+          <!-- Days-until stack: next flight (Flighty writes them into the
+               calendar) and fixed milestones like the SF move. Lives BELOW the
+               masthead clip line, which is legal only because it is narrower
+               than x=340 where the corridor starts; styles.css caps the width.
+               Hides itself when nothing is inside the horizon. -->
+          <div class="slot countdown" id="countdown-line" data-module="countdown"></div>
+
           <!-- RIGHT RAIL: one 300px column against the panel edge. -->
           <div class="rail">
             <div class="wx-deck" data-module="weather">

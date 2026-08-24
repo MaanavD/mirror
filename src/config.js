@@ -93,6 +93,18 @@ export const config = {
     entities: ['light.shapes_a418', 'light.shapes_dedf'],
   },
 
+  countdown: {
+    // "label:YYYY-MM-DD,label:YYYY-MM-DD" — expired milestones self-remove.
+    milestones: (() => {
+      const out = [];
+      for (const part of str('COUNTDOWN_EVENTS', 'sf move:2026-10-15').split(',')) {
+        const m = /^\s*([^:]+):(\d{4}-\d{2}-\d{2})\s*$/.exec(part);
+        if (m) out.push({ label: m[1].trim(), date: m[2] });
+      }
+      return out;
+    })(),
+  },
+
   quote: {
     mode: /^(today|random)$/.test(str('ZENQUOTES_MODE', 'today')) ? str('ZENQUOTES_MODE', 'today') : 'today',
     rotateHour: 4,
