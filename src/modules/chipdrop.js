@@ -53,6 +53,21 @@ function todayCount(calendar) {
   return n ? `${n} EVENTS` : null;
 }
 
+// Longest free gap between today's remaining timed events — the "combo
+// breaker" that interrupts a meeting chain. Null when fewer than 2 events.
+function longestGap(calendar) {
+  const events = (calendar?.today ?? [])
+    .filter((e) => !e.allDay && e.endMs > e.startMs)
+    .sort((a, b) => a.startMs - b.startMs);
+  if (events.length < 2) return null;
+  let best = 0;
+  for (let i = 1; i < events.length; i += 1) {
+    const gap = events[i].startMs - events[i - 1].endMs;
+    if (gap > best) best = gap;
+  }
+  return best > 0 ? `BREAK ${fmtDur(best)}` : null;
+}
+
 function openTasks(notion) {
   const n = notion?.total ?? 0;
   return n ? `${n} TASKS` : null;
@@ -79,7 +94,7 @@ export const CHIPS = [
   { id: 'pureair', name: 'PURE AIR', icon: 'air', resolve: (d) => (d.aqi ? `${d.aqi.level.toUpperCase()}` : null) },
   { id: 'ironwall', name: 'IRON WALL', icon: 'chip', resolve: (d) => openTasks(d.notion) },
   { id: 'deepdive', name: 'DEEP DIVE', icon: 'calendar', resolve: (d) => longestBlock(d.calendar) },
-  { id: 'combobreaker', name: 'COMBO BREAK', icon: 'chip', resolve: (d) => todayCount(d.calendar) },
+  { id: 'combobreaker', name: 'COMBO BREAK', icon: 'chip', resolve: (d) => longestGap(d.calendar) },
   { id: 'sunburst', name: 'SUN BURST', icon: 'sun', resolve: (d) => (d.weather?.today?.hi != null ? `HI ${d.weather.today.hi}°` : null) },
   { id: 'nightowl', name: 'NIGHT OWL', icon: 'moon', resolve: (d) => (d.calendar?.today?.length ? `NIGHT ${d.calendar.today.length}` : null) },
   { id: 'countdown', name: 'COUNT DOWN', icon: 'chip', resolve: (d) => (d.countdown?.items?.[0] ? `${d.countdown.items[0].label} ${d.countdown.items[0].days}D` : null) },

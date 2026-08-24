@@ -619,56 +619,66 @@ import { createModeMachine } from './mode.js';
   // truncated name. >4 tasks => 4 + "+N VIRUSES". Empty => "AREA CLEAN".
   const VIRUS_STROKE = ['#f83818', '#10f8f8', '#f8d018']; // alert / cyan / amber
 
-  // Original pixel-art viruses (NOT ripped assets), one 12x11 bitmap per
-  // variant: helmet grunt / spike shell / one-eyed floater. '#' = body color,
-  // '+' = accent (drawn dimmer). Rendered as crisp SVG rects so they scale
-  // like real sprites, no anti-aliasing mush.
+  // Original pixel-art viruses (NOT ripped assets), one 16x14 bitmap per
+  // variant, silhouettes referencing MMBN archetypes: domed hard-hat grunt
+  // with vertical helmet slit (Mettaur-class), spiked shell, one-eyed
+  // floater. '#' = body color, '+' = accent (drawn dimmer). Rendered as
+  // crisp SVG rects so they scale like real sprites, no anti-aliasing mush.
   const VIRUS_ART = [
-    [ // v0: hard-hat grunt (Mettaur-class)
-      '...######...',
-      '..########..',
-      '.##++++++##.',
-      '.##########.',
-      '.#........#.',
-      '.#.##..##.#.',
-      '.#........#.',
-      '..#..##..#..',
-      '...######...',
-      '...#....#...',
-      '..##....##..',
+    [ // v0: hard-hat grunt (Mettaur-class): dome, center slit, brim, eyes, feet
+      '.....##..##.....',
+      '...####..####...',
+      '..#####..#####..',
+      '.#####+..+#####.',
+      '.#####+..+#####.',
+      '.##############.',
+      '..#..........#..',
+      '..#.##....##.#..',
+      '..#.##....##.#..',
+      '..#..........#..',
+      '...#........#...',
+      '....########....',
+      '...##..##..##...',
+      '..###......###..',
     ],
-    [ // v1: spike shell
-      '.#...##...#.',
-      '..#.####.#..',
-      '...######...',
-      '.##########.',
-      '##.##..##.##',
-      '.##########.',
-      '...#+++#....',
-      '..##....##..',
-      '.#..#..#..#.',
-      '....#..#....',
-      '...##..##...',
+    [ // v1: spike shell: spiked dome, seam band, clawed base
+      '..#....##....#..',
+      '..##..####..##..',
+      '...##########...',
+      '..############..',
+      '.###+##..##+###.',
+      '.##############.',
+      '####..####..####',
+      '.##############.',
+      '..####+..+####..',
+      '...##########...',
+      '..#..#....#..#..',
+      '.#...##..##...#.',
+      '....#......#....',
+      '...##......##...',
     ],
-    [ // v2: one-eyed floater
-      '....####....',
-      '..########..',
-      '.##++++++##.',
-      '.##..##..##.',
-      '.##.####.##.',
-      '.##..##..##.',
-      '.##++++++##.',
-      '..########..',
-      '....####....',
-      '...#.##.#...',
-      '..#..##..#..',
+    [ // v2: one-eyed floater: ringed orb, iris ring, pupil gap, tail fins
+      '......####......',
+      '....########....',
+      '...##++++++##...',
+      '..##+......+##..',
+      '.##+..####..+##.',
+      '.##..##..##..##.',
+      '.##..##..##..##.',
+      '.##...####...##.',
+      '..##........##..',
+      '...##++++++##...',
+      '....########....',
+      '......####......',
+      '....#..##..#....',
+      '...#...##...#...',
     ],
   ];
 
   function virusSprite(variant = 0) {
     const art = VIRUS_ART[variant % VIRUS_ART.length];
     const svg = document.createElementNS(SVG_NS, 'svg');
-    svg.setAttribute('viewBox', '0 0 12 11');
+    svg.setAttribute('viewBox', '0 0 16 14');
     svg.setAttribute('class', 'virus-sprite');
     svg.setAttribute('aria-hidden', 'true');
     svg.setAttribute('shape-rendering', 'crispEdges');

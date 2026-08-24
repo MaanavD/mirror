@@ -11,7 +11,12 @@ test('all chips bind real data (no permanent-dash chips)', () => {
   // every chip must be able to produce a stat from plausible full deps.
   const soon = Date.now() + 3_600_000;
   const full = {
-    calendar: { today: [{ startMs: soon, endMs: soon + 5_700_000, title: 'X', allDay: false }] },
+    calendar: {
+      today: [
+        { startMs: soon, endMs: soon + 5_700_000, title: 'X', allDay: false },
+        { startMs: soon + 9_300_000, endMs: soon + 12_900_000, title: 'Y', allDay: false },
+      ],
+    },
     aqi: { aqi: 21, level: 'good' },
     weather: { current: { temp: 68 }, today: { hi: 71, lo: 55 }, tomorrow: { hi: 70 }, rain2h: { max: 2 } },
     notion: { total: 3 },
@@ -66,4 +71,20 @@ test('missing stat resolves to null and pickChip shows a dash', () => {
   assert.equal(coldsnap.resolve({}), null);
   const picked = pickChip({}, { now: NOW, timeZone: TZ });
   assert.ok(picked.statLine === '—', `expected dash, got ${picked.statLine}`);
+});
+
+test('combo break is the longest gap between events, not the event count', () => {
+  const combob = CHIPS.find((c) => c.id === 'combobreaker');
+  const deps = {
+    calendar: {
+      today: [
+        { title: 'a', startMs: 0, endMs: 30 * 60_000, allDay: false },
+        { title: 'b', startMs: 60 * 60_000, endMs: 90 * 60_000, allDay: false },
+        { title: 'c', startMs: 200 * 60_000, endMs: 210 * 60_000, allDay: false },
+      ],
+    },
+  };
+  assert.equal(combob.resolve(deps), 'BREAK 1H 50M');
+  assert.equal(combob.resolve({ calendar: { today: [deps.calendar.today[0]] } }), null);
+  assert.equal(combob.resolve({}), null);
 });

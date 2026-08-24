@@ -2242,14 +2242,14 @@ body.night #hermy-dialogue {
 
 .virus {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
+  grid-template-columns: 32px minmax(0, 1fr);
   gap: 12px;
   align-items: center;
 }
 
 .virus-sprite {
-  width: 28px;
-  height: 26px;
+  width: 32px;
+  height: 28px;
   image-rendering: pixelated;
 }
 
