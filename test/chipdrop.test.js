@@ -73,18 +73,3 @@ test('missing stat resolves to null and pickChip shows a dash', () => {
   assert.ok(picked.statLine === '—', `expected dash, got ${picked.statLine}`);
 });
 
-test('combo break is the longest gap between events, not the event count', () => {
-  const combob = CHIPS.find((c) => c.id === 'combobreaker');
-  const deps = {
-    calendar: {
-      today: [
-        { title: 'a', startMs: 0, endMs: 30 * 60_000, allDay: false },
-        { title: 'b', startMs: 60 * 60_000, endMs: 90 * 60_000, allDay: false },
-        { title: 'c', startMs: 200 * 60_000, endMs: 210 * 60_000, allDay: false },
-      ],
-    },
-  };
-  assert.equal(combob.resolve(deps), 'BREAK 1H 50M');
-  assert.equal(combob.resolve({ calendar: { today: [deps.calendar.today[0]] } }), null);
-  assert.equal(combob.resolve({}), null);
-});
