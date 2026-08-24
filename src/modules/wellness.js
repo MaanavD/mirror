@@ -228,7 +228,9 @@ export function shapeWellness({ readiness, alarm = null, calendar = null, weathe
     calendarEvents: calendarEventCount(calendar),
     weather,
   });
-  const parts = [`HRV ${normalized.hrv}`, `READY ${normalized.score}`];
+  // Plain words on glass: "SLEEP 88" reads instantly, "READY 88" needed a
+  // manual (Maanav, Aug 24). Score is the Eight Sleep sleep-quality score.
+  const parts = [`HRV ${normalized.hrv}`, `SLEEP ${normalized.score}`];
   if (alarm) parts.push(`ALARM ${alarm}`);
   return {
     emotion,

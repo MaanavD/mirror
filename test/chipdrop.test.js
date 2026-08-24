@@ -5,8 +5,23 @@ import { pickChip, CHIPS } from '../src/modules/chipdrop.js';
 const TZ = 'America/Los_Angeles';
 const NOW = new Date('2026-08-24T16:00:00Z');
 
-test('about 20 chip definitions', () => {
-  assert.ok(CHIPS.length >= 20, `only ${CHIPS.length} chips defined`);
+test('all chips bind real data (no permanent-dash chips)', () => {
+  assert.ok(CHIPS.length >= 15, `only ${CHIPS.length} chips defined`);
+  // A chip that resolves null on EMPTY deps is fine (data may be down), but
+  // every chip must be able to produce a stat from plausible full deps.
+  const soon = Date.now() + 3_600_000;
+  const full = {
+    calendar: { today: [{ startMs: soon, endMs: soon + 5_700_000, title: 'X', allDay: false }] },
+    aqi: { aqi: 21, level: 'good' },
+    weather: { current: { temp: 68 }, today: { hi: 71, lo: 55 }, tomorrow: { hi: 70 }, rain2h: { max: 2 } },
+    notion: { total: 3 },
+    spotify: { track: { artists: ['Daft Punk'] } },
+    countdown: { items: [{ label: 'TORONTO', days: 3 }] },
+    timeZone: 'America/Los_Angeles',
+  };
+  for (const chip of CHIPS) {
+    assert.notEqual(chip.resolve(full), null, `${chip.id} resolves null even with full deps`);
+  }
 });
 
 test('pick is date-seeded and stable through the day', () => {
@@ -46,8 +61,9 @@ test('a real stat resolves from data', () => {
 });
 
 test('missing stat resolves to null and pickChip shows a dash', () => {
-  const recover = CHIPS.find((c) => c.id === 'recover80');
-  assert.equal(recover.resolve({}), null);
+  // Weather chip with no weather data degrades to a dash instead of hiding.
+  const coldsnap = CHIPS.find((c) => c.id === 'coldsnap');
+  assert.equal(coldsnap.resolve({}), null);
   const picked = pickChip({}, { now: NOW, timeZone: TZ });
   assert.ok(picked.statLine === '—', `expected dash, got ${picked.statLine}`);
 });

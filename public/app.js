@@ -418,11 +418,10 @@ import { createModeMachine } from './mode.js';
   // truncated line; hidden entirely when there is nothing to focus on.
   function renderFocus([target], data) {
     if (!data) return;
-    const parts = [];
-    if (data.now) parts.push(`NOW: ${data.now.title} · ENDS ${data.now.ends}`);
-    if (data.next) parts.push(`NEXT: ${data.next.title} IN ${data.next.inMin}M`);
-    if (!parts.length) return;
-    target.append(el('span', 'focus-text', parts.join('   ')));
+    // NOW only: the agenda already lists what's next, repeating it here was
+    // clutter (Maanav, Aug 24).
+    if (!data.now) return;
+    target.append(el('span', 'focus-text', `NOW: ${data.now.title} · ENDS ${data.now.ends}`));
   }
 
   const WELLNESS_GLYPHS = {
@@ -620,37 +619,74 @@ import { createModeMachine } from './mode.js';
   // truncated name. >4 tasks => 4 + "+N VIRUSES". Empty => "AREA CLEAN".
   const VIRUS_STROKE = ['#f83818', '#10f8f8', '#f8d018']; // alert / cyan / amber
 
-  // Original line-art virus (NOT ripped assets): a dome, two eyes, a mouth that
-  // changes with the variant.
+  // Original pixel-art viruses (NOT ripped assets), one 12x11 bitmap per
+  // variant: helmet grunt / spike shell / one-eyed floater. '#' = body color,
+  // '+' = accent (drawn dimmer). Rendered as crisp SVG rects so they scale
+  // like real sprites, no anti-aliasing mush.
+  const VIRUS_ART = [
+    [ // v0: hard-hat grunt (Mettaur-class)
+      '...######...',
+      '..########..',
+      '.##++++++##.',
+      '.##########.',
+      '.#........#.',
+      '.#.##..##.#.',
+      '.#........#.',
+      '..#..##..#..',
+      '...######...',
+      '...#....#...',
+      '..##....##..',
+    ],
+    [ // v1: spike shell
+      '.#...##...#.',
+      '..#.####.#..',
+      '...######...',
+      '.##########.',
+      '##.##..##.##',
+      '.##########.',
+      '...#+++#....',
+      '..##....##..',
+      '.#..#..#..#.',
+      '....#..#....',
+      '...##..##...',
+    ],
+    [ // v2: one-eyed floater
+      '....####....',
+      '..########..',
+      '.##++++++##.',
+      '.##..##..##.',
+      '.##.####.##.',
+      '.##..##..##.',
+      '.##++++++##.',
+      '..########..',
+      '....####....',
+      '...#.##.#...',
+      '..#..##..#..',
+    ],
+  ];
+
   function virusSprite(variant = 0) {
+    const art = VIRUS_ART[variant % VIRUS_ART.length];
     const svg = document.createElementNS(SVG_NS, 'svg');
-    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('viewBox', '0 0 12 11');
     svg.setAttribute('class', 'virus-sprite');
     svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('shape-rendering', 'crispEdges');
     svg.style.color = VIRUS_STROKE[variant % 3];
-    const dome = document.createElementNS(SVG_NS, 'path');
-    dome.setAttribute('d', 'M3 16a9 9 0 0 1 18 0z');
-    dome.setAttribute('fill', 'none');
-    dome.setAttribute('stroke', 'currentColor');
-    dome.setAttribute('stroke-width', '1.8');
-    svg.append(dome);
-    for (const cx of [9, 15]) {
-      const eye = document.createElementNS(SVG_NS, 'circle');
-      eye.setAttribute('cx', cx);
-      eye.setAttribute('cy', 12);
-      eye.setAttribute('r', 1.6);
-      eye.setAttribute('fill', 'currentColor');
-      svg.append(eye);
+    for (let y = 0; y < art.length; y += 1) {
+      for (let x = 0; x < art[y].length; x += 1) {
+        const c = art[y][x];
+        if (c !== '#' && c !== '+') continue;
+        const px = document.createElementNS(SVG_NS, 'rect');
+        px.setAttribute('x', x);
+        px.setAttribute('y', y);
+        px.setAttribute('width', 1);
+        px.setAttribute('height', 1);
+        px.setAttribute('fill', 'currentColor');
+        if (c === '+') px.setAttribute('opacity', '0.45');
+        svg.append(px);
+      }
     }
-    const mouth = document.createElementNS(SVG_NS, 'path');
-    mouth.setAttribute(
-      'd',
-      variant === 1 ? 'M8 18l2-2 2 2 2-2 2 2' : 'M8 18h8',
-    );
-    mouth.setAttribute('stroke', 'currentColor');
-    mouth.setAttribute('stroke-width', '1.6');
-    mouth.setAttribute('fill', 'none');
-    svg.append(mouth);
     return svg;
   }
 

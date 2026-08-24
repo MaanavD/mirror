@@ -49,7 +49,7 @@ test('fetch shells out to readiness and alarm client, then shapes the wellness l
       score: 78,
       hrv: 62,
       alarm: '6:40A',
-      subline: 'HRV 62 · READY 78 · ALARM 6:40A',
+      subline: 'HRV 62 · SLEEP 78 · ALARM 6:40A',
     });
     assert.equal(calls.length, 2);
     assert.deepEqual(calls[0].args.slice(-2), ['/home/hermes/.hermes/scripts/eight_sleep_client.py', 'readiness']);
@@ -114,7 +114,7 @@ test('an alarm outage leaves readiness visible without an alarm segment', async 
       score: 78,
       hrv: 62,
       alarm: null,
-      subline: 'HRV 62 · READY 78',
+      subline: 'HRV 62 · SLEEP 78',
     });
   } finally {
     restore();
@@ -149,7 +149,7 @@ test('wellness is registered below countdown and stays in the right rail', () =>
 
 test('mock data produces the requested exact subline', () => {
   const data = wellnessModule.mock({ now: NOW });
-  assert.equal(data.subline, 'HRV 62 · READY 78 · ALARM 6:40A');
+  assert.equal(data.subline, 'HRV 62 · SLEEP 78 · ALARM 6:40A');
 });
 
 // Keep the pure shape contract visible to future changes.

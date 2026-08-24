@@ -2226,16 +2226,15 @@ body.night #hermy-dialogue {
 
 .virus {
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr);
+  grid-template-columns: 28px minmax(0, 1fr);
   gap: 12px;
   align-items: center;
 }
 
 .virus-sprite {
-  width: 24px;
-  height: 24px;
-  fill: none;
-  stroke: currentColor;
+  width: 28px;
+  height: 26px;
+  image-rendering: pixelated;
 }
 
 .vname {
