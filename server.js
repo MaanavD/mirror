@@ -9,6 +9,7 @@ import { createPresenceHandler } from './src/presence.js';
 import { Scheduler } from './src/scheduler.js';
 import { createEventStream } from './src/sse.js';
 import { Store } from './src/store.js';
+import { Voice } from './src/voice.js';
 
 const log = createLogger('mirror');
 
@@ -19,6 +20,7 @@ const store = new Store({ config, cache, modules, log: createLogger('store') });
 const scheduler = new Scheduler({ store, config, log: createLogger('scheduler') });
 const events = createEventStream({ store, log: createLogger('sse') });
 const display = new DisplayController({ config, store, log: createLogger('display') });
+const voice = new Voice({ config, log: createLogger('voice') });
 
 const app = express();
 app.disable('x-powered-by');
@@ -52,6 +54,14 @@ app.post('/api/say', requireDisplayToken(config), (req, res) => {
   const holdMs = Math.min(Math.max(Number(req.body?.holdMs) || 0, 0), 60_000);
   events.broadcast('say', { text, holdMs });
   res.json({ ok: true, clients: events.size });
+});
+
+// Hermy speaks: play a cached voice clip on the mirror's speaker. Same token
+// as /api/say. Body: { clip } — clip names live in hermy_voice_pack.py.
+app.post('/api/speak', requireDisplayToken(config), async (req, res) => {
+  const clip = String(req.body?.clip ?? '').trim();
+  if (!clip) return res.status(400).json({ error: 'clip required' });
+  res.json(await voice.play(clip, { force: true }));
 });
 
 // Presence ping: an mmWave sensor (or curl, for now) telling the mirror that
@@ -129,6 +139,10 @@ const server = app.listen(config.port, config.host, () => {
 store.refreshAll('boot').then(() => log.info('initial refresh complete'));
 scheduler.start();
 display.startSchedule();
+
+// Hermy's ears: after every publish, look for transitions worth speaking
+// about (readiness extremes, weather battles, flight day, area clean).
+store.subscribe((snapshot) => voice.observe(snapshot.modules ?? {}));
 
 let shuttingDown = false;
 async function shutdown(signal) {
