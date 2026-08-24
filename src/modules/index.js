@@ -9,11 +9,12 @@ import notionModule from './notion.js';
 import quoteModule from './quote.js';
 import spotifyModule from './spotify.js';
 import weatherModule from './weather.js';
+import wellnessModule from './wellness.js';
 
 /**
  * Registration order = order of the keys in /api/state.modules.
  * To add a module see DESIGN.md ("adding a module").
  */
-export const modules = [weatherModule, astroModule, aqiModule, calendarModule, leavebyModule, countdownModule, quoteModule, notionModule, nanoleafModule, spotifyModule, newsModule];
+export const modules = [weatherModule, astroModule, aqiModule, calendarModule, leavebyModule, countdownModule, wellnessModule, quoteModule, notionModule, nanoleafModule, spotifyModule, newsModule];
 
 export default modules;
