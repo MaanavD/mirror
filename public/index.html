@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=1080, initial-scale=1" />
     <meta name="color-scheme" content="dark" />
     <title>hermy.exe</title>
+    <!-- Inline favicon: silences the kiosk's one 404. Navi-emblem ring. -->
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='none' stroke='%2367e8f9' stroke-width='1.5'/%3E%3Cpath d='M4 12 12 4' stroke='%2367e8f9' stroke-width='1.5'/%3E%3C/svg%3E" />
     <!-- BN pixel faces (design/BN_REFERENCE.md §5). The kiosk is online for its
          data modules anyway; offline this link fails silently and the local()
          sources / monospace stack in styles.css take over. No FOIT: swap. -->
@@ -20,102 +22,125 @@
     <!-- Fixed 1080x1920 portrait. BN window grammar per design/BN_REFERENCE.md:
          notched line-work frames with header tabs, no filled panels.
 
-         Density budget (the mirror is the product, not the dashboard): every
-         lit thing lives in the top band (~25%) or the bottom band (~18%). The
-         `.void` row between them is black, frameless glass for the viewer. -->
+         Composition is a hard three-row grid, because the mirror is the product:
+
+           y    0.. 480  top band — everything lit above the face
+           y  480..1250  FACE ZONE — black, frameless, content-free. His face
+                         reflects here; only transient overlays may cross it.
+           y 1250..1920  bottom band — quote/news left, hermy over tasks right
+
+         The bands clip their own overflow, so no module can grow into the face
+         zone no matter what the payload says. -->
     <main id="root">
-      <!-- PET header: Navi emblem + nameplate + net location. The breathing
-           status square is the only always-on cyan element. -->
-      <header class="pet-head">
-        <div class="navi">
-          <!-- Navi emblem: ring + core + the BN diagonal band, line-work only. -->
-          <svg class="emblem" viewBox="0 0 48 48" aria-hidden="true">
-            <circle class="e-outer" cx="24" cy="24" r="21" />
-            <circle class="e-inner" cx="24" cy="24" r="15" />
-            <path class="e-band" d="M10.5 30 30 10.5M18 37.5 37.5 18" />
-          </svg>
-          <span class="navi-name">hermy.exe</span>
-          <span class="status-dot"></span>
-        </div>
-        <div class="net">
-          <span>seattle</span>
-          <span class="sep">/</span>
-          <span id="week"></span>
-        </div>
-      </header>
+      <div class="top-band">
+        <!-- PET header: Navi emblem + nameplate + net location. The breathing
+             status square is the only always-on cyan element. -->
+        <header class="pet-head">
+          <div class="navi">
+            <!-- Navi emblem: ring + core + the BN diagonal band, line-work only. -->
+            <svg class="emblem" viewBox="0 0 48 48" aria-hidden="true">
+              <circle class="e-outer" cx="24" cy="24" r="21" />
+              <circle class="e-inner" cx="24" cy="24" r="15" />
+              <path class="e-band" d="M10.5 30 30 10.5M18 37.5 37.5 18" />
+            </svg>
+            <span class="navi-name">hermy.exe</span>
+            <span class="status-dot"></span>
+          </div>
+          <div class="net">
+            <span>seattle</span>
+            <span class="sep">/</span>
+            <span id="week"></span>
+          </div>
+        </header>
 
-      <!-- Top cluster in the upper corners, per the BN reference's composition
-           note for 1080x1920: clock left, the whole weather readout right.
-           Two or three lines of numbers do not earn a window frame, so they
-           get none — the HP gauge is the only BN chrome here. -->
-      <section class="deck">
-        <div class="masthead">
-          <!-- Clock is client-side only: it renders before, and without, any network. -->
-          <div id="clock" class="clock">--:--</div>
-          <div class="dateline"><span id="date"></span></div>
-        </div>
+        <!-- Top cluster in the upper corners, per the BN reference's composition
+             note for 1080x1920: clock (with the sun/UV readout under it) left,
+             the whole weather readout right. Two or three lines of numbers do
+             not earn a window frame, so they get none — the HP gauge is the
+             only BN chrome here. -->
+        <section class="deck">
+          <div class="masthead">
+            <!-- Clock is client-side only: it renders before, and without, any
+                 network. app.js splits it into per-character cells so a changed
+                 digit can tick in place. -->
+            <div id="clock" class="clock">--:--</div>
+            <div class="dateline"><span id="date"></span></div>
+            <!-- Sun up / sun down / UV: promoted out of the old dim one-liner
+                 into a real readout with line-work glyphs. No moon data. -->
+            <div class="slot astro" id="astro-line"></div>
+          </div>
 
-        <div class="wx-deck" data-module="weather">
-          <div class="slot wx" id="wx-today"></div>
-          <div class="slot wx next" id="wx-tomorrow"></div>
-          <div class="slot astro" id="astro-line"></div>
-          <div id="aqi-chip"></div>
-          <div class="slot wx-rain" id="wx-rain"></div>
-        </div>
-      </section>
+          <div class="wx-deck" data-module="weather">
+            <div class="slot wx" id="wx-today"></div>
+            <div class="slot wx next" id="wx-tomorrow"></div>
+            <!-- Both conditional tags share one row so neither can push the
+                 readout down into the face zone. -->
+            <div class="wx-chips">
+              <div class="slot wx-rain" id="wx-rain"></div>
+              <div id="aqi-chip"></div>
+            </div>
+          </div>
+        </section>
 
-      <!-- One frame for both agendas: two tabs on the same edge label the
-           columns, BN-style (today active, tomorrow inactive). A tab hides
-           with its column; the frame hides when both are empty. -->
-      <section class="win days" data-module="calendar">
-        <div class="frame"></div>
-        <span class="tab"><span>today</span></span>
-        <span class="tab aux"><span>tomorrow</span></span>
-        <div class="slot cal" id="cal-today"></div>
-        <div class="slot cal" id="cal-tomorrow"></div>
-      </section>
+        <!-- One frame for both agendas: two tabs on the same edge label the
+             columns, BN-style (today active, tomorrow inactive). A tab hides
+             with its column; the frame hides when both are empty. It lives in
+             the top band, clear of the face zone. -->
+        <section class="win days" data-module="calendar">
+          <div class="frame"></div>
+          <span class="tab"><span>today</span></span>
+          <span class="tab aux"><span>tomorrow</span></span>
+          <div class="slot cal" id="cal-today"></div>
+          <div class="slot cal" id="cal-tomorrow"></div>
+        </section>
 
-      <!-- Leave-by chip: single dim line under the calendar frame, only
-           visible when a leave-by time exists and is in the future. -->
-      <div class="leaveby" id="leaveby" data-module="leaveby"></div>
+        <!-- Leave-by chip: single dim line under the calendar frame, only
+             visible when a leave-by time exists and is in the future. -->
+        <div class="leaveby" id="leaveby" data-module="leaveby"></div>
+      </div>
 
-      <div class="void"></div>
+      <!-- The point of the whole pass: guaranteed black, frameless glass from
+           y=480 to y=1250. Nothing renders in here, ever. -->
+      <div class="face" aria-hidden="true"></div>
 
-      <!-- Mount points: the vinyl is a stateful center-low overlay, not a grid
+      <!-- Mount points: the vinyl is a stateful low-center overlay, not a grid
            module; the empty mount collapses back to pure black. -->
       <div id="now-playing" class="mount" aria-live="polite"></div>
       <div id="hermy-dialogue" class="mount"></div>
 
-      <!-- Bottom band: the Nanoleaf chip readout sits directly above the
-           quote at lower-left; the task frame supplies the shared top edge. -->
-      <div class="band">
-        <div class="band-left">
-          <section class="nanoleaf" id="nanoleaf" data-module="nanoleaf">
-            <div class="body"></div>
-          </section>
+      <div class="bottom-band">
+        <!-- Bottom band: the Nanoleaf chip readout sits directly above the
+             quote at lower-left; the task frame supplies the shared top edge. -->
+        <div class="band">
+          <div class="band-left">
+            <section class="nanoleaf" id="nanoleaf" data-module="nanoleaf">
+              <div class="body"></div>
+            </section>
 
-          <section class="quote" id="quote" data-module="quote">
-            <div class="body"></div>
-            <!-- Required by the ZenQuotes terms. Deliberately near-invisible. -->
-            <div class="credit">inspired by ZenQuotes</div>
-          </section>
+            <section class="quote" id="quote" data-module="quote">
+              <div class="body"></div>
+              <!-- Required by the ZenQuotes terms. Deliberately near-invisible. -->
+              <div class="credit">inspired by ZenQuotes</div>
+            </section>
+          </div>
+
+          <div class="band-right">
+            <!-- Hermy.EXE idle avatar: 12-frame hand-built sprite sheet, sitting
+                 directly on the top edge of the tasks frame. -->
+            <div id="hermy" class="hermy" aria-hidden="true"></div>
+            <section class="win tasks" id="notion" data-module="notion">
+              <div class="frame"></div>
+              <span class="tab"><span>tasks</span></span>
+              <div class="body"></div>
+            </section>
+          </div>
         </div>
 
-        <div class="band-right">
-          <!-- Hermy.EXE idle avatar: 12-frame hand-built sprite sheet, above tasks. -->
-          <div id="hermy" class="hermy" aria-hidden="true"></div>
-          <section class="win tasks" id="notion" data-module="notion">
-            <div class="frame"></div>
-            <span class="tab"><span>tasks</span></span>
-            <div class="body"></div>
-          </section>
+        <!-- Net feed: a single dim BN line below the quote, one HN headline at a
+             time. Collapses to pure black on failure (no data -> no frame). -->
+        <div class="news" id="news" data-module="news">
+          <div class="body"></div>
         </div>
-      </div>
-
-      <!-- Net feed: a single dim BN line below the quote, one HN headline at a
-           time. Collapses to pure black on failure (no data -> no frame). -->
-      <div class="news" id="news" data-module="news">
-        <div class="body"></div>
       </div>
 
       <!-- The only staleness signal anywhere: one dim dot. Never text. -->
@@ -124,12 +149,13 @@
 
     <!-- One-shot boot / "JACK IN" overlay (see app.js bootAnimation). Pure
          black, line-work only; removed from the DOM when it finishes and
-         skipped entirely under prefers-reduced-motion. -->
+         skipped entirely under prefers-reduced-motion. The window frames draw
+         themselves in right after it clears. -->
     <div id="boot" aria-hidden="true">
       <div class="boot-text" role="img" aria-label="JACK IN! HERMY.EXE"></div>
       <div class="boot-sweep"></div>
     </div>
 
-    <script src="/app.js" defer></script>
+    <script type="module" src="/app.js"></script>
   </body>
 </html>

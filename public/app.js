@@ -7,7 +7,13 @@
     3. GET /api/state paints (server disk cache, possibly stale)
     4. SSE takes over; if it drops, 60s polling does
   There is no loading state and no spinner at any point.
+
+  Motion lives in three places: the CSS tokens in styles.css, the calm/active/
+  night machine in mode.js, and the small schedulers at the bottom of this file
+  (frame draw-in, scanline sweep). Everything here checks prefers-reduced-motion.
 */
+import { createModeMachine } from './mode.js';
+
 (() => {
   'use strict';
 
@@ -15,14 +21,19 @@
   const POLL_MS = 60_000;
   const SSE_RETRY_MS = 30_000;
   const BURN_IN_MS = 10 * 60_000;
-  const FADE_MS = 900;
+  // Module payload swaps crossfade fast; long dissolves read as a page load.
+  const FADE_MS = 220;
+
+  const REDUCED_MOTION = Boolean(
+    window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,
+  );
 
   // Imminent-event alert: a timed event drawing near gets lifted out of the
   // agenda as a HUD bracket for one beat. Each event fires once per session.
   const IMMINENT_MS = 10 * 60_000; // within 10 min → full detach alert
   const URGENT_MS = 60_000; // under 60 s → reserved shake instead
   const HOLD_MS = 8_000; // bracket holds for 8 s, then returns
-  const ALERT_TOP = 520; // just below the top band, well above screen centre
+  const ALERT_TOP = 1280; // below the face zone, in the bottom band's dead air
   const ALERT_SCALE = 1.3;
   const firedAlerts = new Set(); // session-scoped guard
   let latestCalendar = null; // last calendar payload we rendered
@@ -38,7 +49,6 @@
   // shared frame), so every entry is a list.
   const q = (selector) => document.querySelector(selector);
   const bodies = {
-    weather: [q('#wx-today'), q('#wx-tomorrow')],
     astro: [q('#astro-line')],
     aqi: [q('#aqi-chip')],
     weather: [q('#wx-today'), q('#wx-tomorrow'), q('#wx-rain')],
@@ -72,10 +82,28 @@
     return Math.ceil(((d - yearStart) / 86_400_000 + 1) / 7);
   }
 
+  // One <span> per character, so a minute rollover only re-animates the cells
+  // that actually changed (":" and unchanged digits sit still). A length change
+  // — 9:59 to 10:00 — rebuilds the row, which reads as the whole clock ticking.
+  function paintTicker(target, text) {
+    const chars = [...text];
+    if (target.childElementCount !== chars.length) {
+      target.replaceChildren(...chars.map((ch) => el('span', 'ch', ch)));
+      return;
+    }
+    for (let i = 0; i < chars.length; i += 1) {
+      const cell = target.children[i];
+      if (cell.textContent === chars[i]) continue;
+      cell.textContent = chars[i];
+      cell.classList.remove('tick');
+      void cell.offsetWidth; // restart the animation from frame zero
+      cell.classList.add('tick');
+    }
+  }
+
   function paintClock() {
     const now = new Date();
-    const time = timeFmt.format(now);
-    if (clockEl.textContent !== time) clockEl.textContent = time;
+    paintTicker(clockEl, timeFmt.format(now));
 
     const date = dateFmt.format(now).toLowerCase();
     if (dateEl.textContent !== date) dateEl.textContent = date;
@@ -99,8 +127,15 @@
   // ------------------------------------------------------ weather icons
   //
   // Stroke-only line art built from the Open-Meteo / WMO weathercode the
-  // server already ships per slot. One <path> per icon, currentColor, no
-  // fills — the same brightness physics as the rest of the glass.
+  // server already ships per slot. currentColor, no fills — the same
+  // brightness physics as the rest of the glass.
+  //
+  // Each icon is a list of parts instead of one path, because the parts move:
+  // `wx-rays` turns, `wx-cloud` drifts, `wx-drop`/`wx-dash` fall, `wx-flake`
+  // settles, `wx-bolt` flickers (keyframes and tempo live in styles.css). A part
+  // may carry `origin` for its rotation centre and `delay`, expressed as a
+  // fraction of the animation's own duration so a stagger survives a mode
+  // change: a negative fraction starts that streak mid-cycle.
 
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const r1 = (n) => Math.round(n * 10) / 10;
@@ -122,20 +157,58 @@
     `M${x} ${r1(y - 3.4)}v6.8M${r1(x - 2.9)} ${r1(y - 1.7)}l5.8 3.4M${r1(x + 2.9)} ${r1(y - 1.7)}l-5.8 3.4`;
 
   const ICONS = {
-    sun: () => circleD(24, 24, 8.5) + raysD(24, 24, 12.5, 16.5, [0, 45, 90, 135, 180, 225, 270, 315]),
-    'sun-cloud': () =>
-      circleD(19, 18, 7.5) +
-      raysD(19, 18, 11, 15, [0, 315, 270, 225, 180, 135]) +
-      'M25 36a4.5 4.5 0 0 1 2-8.4 6.5 6.5 0 0 1 12.4-.8 4.5 4.5 0 0 1 1.6 9.2z',
-    'cloud-sun': () => circleD(35, 12, 5) + raysD(35, 12, 8, 11.5, [0, 315, 270]) + cloudD(2),
-    cloud: () => cloudD(2),
-    fog: () => cloudD(-4) + 'M14 33h20M18 39h13',
-    drizzle: () => cloudD(-5) + 'M18 31l-1 3M26 31l-1 3M34 31l-1 3',
-    rain: () => cloudD(-6) + 'M19 29l-3 9M27 29l-3 9M35 29l-3 9',
-    sleet: () => cloudD(-6) + 'M19 29l-3 9M35 29l-3 9' + flakeD(26, 34),
-    snow: () => cloudD(-6) + flakeD(17, 33) + flakeD(25, 37) + flakeD(33, 33),
-    storm: () => cloudD(-7) + 'M27 26l-6 9h7l-6 10',
-    unknown: () => 'M24 15l8 9-8 9-8-9z',
+    sun: () => [
+      { d: circleD(24, 24, 8.5) },
+      {
+        d: raysD(24, 24, 12.5, 16.5, [0, 45, 90, 135, 180, 225, 270, 315]),
+        cls: 'wx-rays',
+      },
+    ],
+    'sun-cloud': () => [
+      { d: circleD(19, 18, 7.5) },
+      { d: raysD(19, 18, 11, 15, [0, 315, 270, 225, 180, 135]), cls: 'wx-rays', origin: '19px 18px' },
+      { d: 'M25 36a4.5 4.5 0 0 1 2-8.4 6.5 6.5 0 0 1 12.4-.8 4.5 4.5 0 0 1 1.6 9.2z', cls: 'wx-cloud' },
+    ],
+    'cloud-sun': () => [
+      { d: circleD(35, 12, 5) },
+      { d: raysD(35, 12, 8, 11.5, [0, 315, 270]), cls: 'wx-rays', origin: '35px 12px' },
+      { d: cloudD(2), cls: 'wx-cloud' },
+    ],
+    cloud: () => [{ d: cloudD(2), cls: 'wx-cloud' }],
+    fog: () => [
+      { d: cloudD(-4), cls: 'wx-cloud' },
+      { d: 'M14 33h20', cls: 'wx-mist' },
+      { d: 'M18 39h13', cls: 'wx-mist', delay: -0.5 },
+    ],
+    drizzle: () => [
+      { d: cloudD(-5), cls: 'wx-cloud' },
+      { d: 'M18 31l-1 3', cls: 'wx-dash' },
+      { d: 'M26 31l-1 3', cls: 'wx-dash', delay: -0.33 },
+      { d: 'M34 31l-1 3', cls: 'wx-dash', delay: -0.66 },
+    ],
+    rain: () => [
+      { d: cloudD(-6), cls: 'wx-cloud' },
+      { d: 'M19 29l-3 8', cls: 'wx-drop' },
+      { d: 'M27 29l-3 8', cls: 'wx-drop', delay: -0.33 },
+      { d: 'M35 29l-3 8', cls: 'wx-drop', delay: -0.66 },
+    ],
+    sleet: () => [
+      { d: cloudD(-6), cls: 'wx-cloud' },
+      { d: 'M19 29l-3 8', cls: 'wx-drop' },
+      { d: 'M35 29l-3 8', cls: 'wx-drop', delay: -0.5 },
+      { d: flakeD(26, 34), cls: 'wx-flake', delay: -0.25 },
+    ],
+    snow: () => [
+      { d: cloudD(-6), cls: 'wx-cloud' },
+      { d: flakeD(17, 33), cls: 'wx-flake' },
+      { d: flakeD(25, 37), cls: 'wx-flake', delay: -0.33 },
+      { d: flakeD(33, 33), cls: 'wx-flake', delay: -0.66 },
+    ],
+    storm: () => [
+      { d: cloudD(-7), cls: 'wx-cloud' },
+      { d: 'M27 26l-6 9h7l-6 10', cls: 'wx-bolt' },
+    ],
+    unknown: () => [{ d: 'M24 15l8 9-8 9-8-9z' }],
   };
 
   function iconKind(code) {
@@ -152,14 +225,48 @@
     return 'unknown';
   }
 
+  // Which mode token drives each animated part's duration.
+  const DELAY_TOKEN = {
+    'wx-drop': '--wx-fall',
+    'wx-dash': '--wx-fall',
+    'wx-flake': '--wx-flake',
+    'wx-mist': '--wx-drift',
+  };
+
   function weatherIcon(code, className) {
     const svg = document.createElementNS(SVG_NS, 'svg');
     svg.setAttribute('viewBox', '0 0 48 48');
     svg.setAttribute('class', className);
     svg.setAttribute('aria-hidden', 'true');
+    for (const part of ICONS[iconKind(code)]()) {
+      const path = document.createElementNS(SVG_NS, 'path');
+      path.setAttribute('d', part.d);
+      path.setAttribute('stroke-width', '2');
+      path.setAttribute('stroke-linecap', 'round');
+      path.setAttribute('stroke-linejoin', 'round');
+      if (part.cls) path.setAttribute('class', part.cls);
+      if (part.origin) path.style.transformOrigin = part.origin;
+      // Duration is a mode token, so a stagger has to be expressed as a
+      // fraction of that same token or it would drift when the mode changes.
+      if (part.delay) {
+        const token = DELAY_TOKEN[part.cls] ?? '--wx-fall';
+        path.style.animationDelay = `calc(var(${token}) * ${part.delay})`;
+      }
+      svg.append(path);
+    }
+    return svg;
+  }
+
+  // Small square line-work glyph (astro readout). Thinner stroke than the
+  // weather icons: it sits next to text, not on its own.
+  function lineGlyph(d, className) {
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('class', className);
+    svg.setAttribute('aria-hidden', 'true');
     const path = document.createElementNS(SVG_NS, 'path');
-    path.setAttribute('d', ICONS[iconKind(code)]());
-    path.setAttribute('stroke-width', '2');
+    path.setAttribute('d', d);
+    path.setAttribute('stroke-width', '1.6');
     path.setAttribute('stroke-linecap', 'round');
     path.setAttribute('stroke-linejoin', 'round');
     svg.append(path);
@@ -226,27 +333,53 @@
     }
   }
 
-  // Moon phase + sunrise/sunset + UV: one dim line under the weather deck.
+  // Sun up / sun down / UV, under the clock. The astro payload still carries the
+  // moon (the /api/state contract is unchanged) — the mirror just does not paint
+  // it any more: at the glass, phase names were noise and the sun times were the
+  // only part anyone read. So they get glyphs and real type instead.
+  const ASTRO_GLYPHS = {
+    sunrise:
+      'M3 20.5h18M8.5 20.5a3.5 3.5 0 0 1 7 0M5.6 15.7l1.6 1.6M18.4 15.7l-1.6 1.6' +
+      'M12 3.5v7.5M9.2 6.3 12 3.5l2.8 2.8',
+    sunset:
+      'M3 20.5h18M8.5 20.5a3.5 3.5 0 0 1 7 0M5.6 15.7l1.6 1.6M18.4 15.7l-1.6 1.6' +
+      'M12 3.5v7.5M9.2 8.2 12 11l2.8-2.8',
+    uv:
+      circleD(12, 8.5, 3.2) +
+      raysD(12, 8.5, 5, 7, [270, 225, 315, 180, 0]) +
+      'M8 14.5v4M6.9 17.4 8 18.5l1.1-1.1M16 14.5v4M14.9 17.4 16 18.5l1.1-1.1',
+  };
+
+  // "06:14" -> "6:14", "20:22" -> "8:22". The arrow glyph carries the am/pm.
+  function shortTime(label) {
+    const m = /^(\d{1,2}):(\d{2})/.exec(String(label ?? ''));
+    if (!m) return null;
+    const hour = Number(m[1]) % 12;
+    return `${hour === 0 ? 12 : hour}:${m[2]}`;
+  }
+
+  function astroItem(kind, value) {
+    const item = el('span', `astro-item ${kind}`);
+    item.append(lineGlyph(ASTRO_GLYPHS[kind], 'astro-glyph'));
+    item.append(el('span', 'astro-val', value));
+    return item;
+  }
+
   function renderAstro([target], data) {
-    if (!data || data.moonPhase === undefined || data.moonPhase === null) return;
+    if (!data) return;
 
-    const line = el('div', 'astro-line');
-    line.innerHTML = data.svgMoon ?? '';
-    line.append(el('span', 'astro-phase', data.moonPhaseName ?? ''));
+    const strip = el('div', 'astro-strip');
+    const up = shortTime(data.sunrise);
+    const down = shortTime(data.sunset);
+    if (up) strip.append(astroItem('sunrise', up));
+    if (down) strip.append(astroItem('sunset', down));
 
-    if (data.sunrise && data.sunset) {
-      line.append(el('span', 'astro-sep', '\u00A0\u00B7\u00A0'));
-      line.append(el('span', null, `\u2191${data.sunrise}`));
-      line.append(el('span', 'astro-sep', '\u00A0'));
-      line.append(el('span', null, `\u2193${data.sunset}`));
-    }
+    // Below 3 the index is not actionable, and unlit pixels are the point.
+    const uv = Number(data.uv);
+    if (Number.isFinite(uv) && uv >= 3) strip.append(astroItem('uv', `UV ${Math.round(uv)}`));
 
-    if (data.uv !== null && data.uv !== undefined && data.uv >= 3) {
-      line.append(el('span', 'astro-sep', '\u00A0\u00B7\u00A0'));
-      line.append(el('span', null, `UV ${data.uv}`));
-    }
-
-    target.append(line);
+    if (!strip.childElementCount) return;
+    target.append(strip);
   }
 
   function agendaList(events, { cursor = false } = {}) {
@@ -299,8 +432,9 @@
 
   // ------------------------------------------------- imminent-event alert
 
-  // A fixed clone of an agenda row is lifted to the centre-top, framed by four
-  // cyan HUD corner brackets, micro-pulses twice, holds, then flies home.
+  // A fixed clone of an agenda row travels to the alert rail — the dead air just
+  // below the face zone, since the middle of the glass is his face — where it is
+  // framed by four cyan HUD corner brackets, micro-pulses twice, then flies home.
   function findRow(id) {
     const rows = document.querySelectorAll('#cal-today li[data-event-id]');
     for (const row of rows) if (row.dataset.eventId === id) return row;
@@ -811,6 +945,9 @@
 
     let overlay = nowPlayingEl.firstElementChild;
     if (!overlay || playingKey !== key) {
+      // A genuine track change wakes the mirror up; the first track we ever see
+      // (hydrating from localStorage on boot) does not.
+      if (playingKey !== null && playingKey !== key) wake('track');
       overlay = makeVinyl(data, key);
       nowPlayingEl.replaceChildren(overlay);
       playingKey = key;
@@ -819,9 +956,30 @@
     updateVinylDetails(overlay, data);
   }
 
-  // Slow cross-fade, and only when the payload actually changed.
+  // Cross-fade, and only when the payload actually changed.
   const signatures = {};
   const swapTimers = {};
+  const shimmerTimers = {};
+  const SHIMMER_MS = 700;
+
+  // Ambient life: fresh data makes the module's own tab flare for a moment, the
+  // way a BN folder tab acknowledges a packet. Never the body text — a shimmer
+  // that hits the words would make them unreadable at the exact wrong moment.
+  function shimmerTab(name) {
+    if (REDUCED_MOTION) return;
+    const section = document.querySelector(`[data-module="${name}"]`);
+    const tabs = section?.querySelectorAll('.tab, .tag');
+    if (!tabs?.length) return;
+    clearTimeout(shimmerTimers[name]);
+    for (const tab of tabs) {
+      tab.classList.remove('shimmer');
+      void tab.offsetWidth;
+      tab.classList.add('shimmer');
+    }
+    shimmerTimers[name] = setTimeout(() => {
+      for (const tab of tabs) tab.classList.remove('shimmer');
+    }, SHIMMER_MS);
+  }
 
   function update(name, data) {
     const targets = bodies[name];
@@ -835,6 +993,7 @@
       for (const target of targets) target.replaceChildren();
       renderers[name](targets, data);
       for (const target of targets) target.classList.remove('fading');
+      if (!first) shimmerTab(name);
     };
 
     clearTimeout(swapTimers[name]);
@@ -943,8 +1102,21 @@
       try {
         const { text, holdMs } = JSON.parse(event.data);
         hermySay(text, holdMs);
+        wake('say');
       } catch {
         // malformed say frame: ignore
+      }
+    });
+    // Presence ping from /api/presence (mmWave sensor, eventually). The server
+    // keeps no presence state; this is purely a motion cue, and an "absent"
+    // frame is a no-op rather than a forced stand-down — a burst that is already
+    // running is short enough to let finish.
+    source.addEventListener('presence', (event) => {
+      try {
+        const { present } = JSON.parse(event.data);
+        if (present !== false) wake('presence');
+      } catch {
+        // malformed presence frame: ignore
       }
     });
     source.addEventListener('error', () => {
@@ -1053,19 +1225,116 @@
     hermySay(`Good morning, Maanav! ${day}, jacked in and ready. Let's make it count.`);
   }
 
-  // ------------------------------------------------------------ night mode
+  // ------------------------------------------------------ motion mode / night
 
-  // From 22:30 until 05:00 the whole surface dims and non-essential modules
-  // (tasks, nanoleaf, quote, hermy) fade out: the mirror keeps clock, weather
-  // and agenda at low brightness for the wind-down, then the display schedule
-  // cuts power at its usual time. Pure CSS class; no server involvement.
-  function nightWatch() {
-    const apply = () => {
-      const h = new Date().getHours() + new Date().getMinutes() / 60;
-      document.body.classList.toggle('night', h >= 22.5 || h < 5);
+  // calm (default) · active (90s bursts) · night. The machine itself is in
+  // mode.js so it can be tested; all this does is publish the result as a body
+  // attribute, which is what the CSS motion tokens key off.
+  //
+  // night keeps its old meaning and its old class: from 22:30 until 05:00 the
+  // whole surface dims and non-essential modules (tasks, nanoleaf, quote, hermy)
+  // fade out, then the display schedule cuts power at its usual time.
+  const modes = createModeMachine({
+    reducedMotion: REDUCED_MOTION,
+    onChange: ({ mode }) => {
+      document.body.dataset.mode = mode;
+      document.body.classList.toggle('night', mode === 'night');
+    },
+  });
+
+  // Something happened at the mirror: run everything at full intensity for a
+  // while. Sources are the `say` push, a Spotify track change, and /api/presence.
+  function wake(reason) {
+    modes.trigger(reason);
+  }
+
+  // ---------------------------------------------------------- scanline sweep
+
+  // Every few minutes one window frame gets a single dim scanline. Cadence is
+  // deliberately irregular so it never reads as a metronome, and it doubles up
+  // while active. Skipped entirely when the panel is dark or nobody can see it.
+  const SCAN_MS = { active: [50_000, 40_000], calm: [170_000, 120_000] };
+
+  function scanDelay() {
+    const [base, jitter] = SCAN_MS[modes.mode] ?? SCAN_MS.calm;
+    return base + Math.random() * jitter;
+  }
+
+  function scanOnce() {
+    if (document.hidden || document.body.classList.contains('off')) return;
+    const frames = [...document.querySelectorAll('.win')].filter(
+      (win) => win.offsetWidth > 0 && getComputedStyle(win).visibility !== 'hidden',
+    );
+    if (!frames.length) return;
+    const win = frames[Math.floor(Math.random() * frames.length)];
+    win.classList.add('scanning');
+    setTimeout(() => win.classList.remove('scanning'), 1_100);
+  }
+
+  function scanWatch() {
+    if (REDUCED_MOTION) return;
+    const loop = () => {
+      scanOnce();
+      setTimeout(loop, scanDelay());
     };
-    apply();
-    setInterval(apply, 60_000);
+    setTimeout(loop, scanDelay());
+  }
+
+  // ------------------------------------------------------- frame draw-in
+
+  // First paint after the JACK IN overlay clears: each window's notched outline
+  // draws itself on, stroke-dashoffset style, then hands over to the real
+  // border-image frame. The path is generated at the window's actual pixel size
+  // with the same geometry the frame SVG uses (2px inset, 3.4px corner steps),
+  // so the drawn line lands exactly where the frame will be.
+  const DRAW_MS = 900;
+  const FRAME_INSET = 2;
+  const FRAME_STEP = 3.4;
+
+  function framePathD(w, h, a = FRAME_INSET, s = FRAME_STEP) {
+    const c = a + 2 * s; // where the corner stair meets the straight edge
+    return [
+      `M${r1(c)} ${r1(a)}`, `H${r1(w - c)}`, `V${r1(a + s)}`, `H${r1(w - a - s)}`,
+      `V${r1(c)}`, `H${r1(w - a)}`, `V${r1(h - c)}`, `H${r1(w - a - s)}`,
+      `V${r1(h - a - s)}`, `H${r1(w - c)}`, `V${r1(h - a)}`, `H${r1(c)}`,
+      `V${r1(h - a - s)}`, `H${r1(a + s)}`, `V${r1(h - c)}`, `H${r1(a)}`,
+      `V${r1(c)}`, `H${r1(a + s)}`, `V${r1(a + s)}`, `H${r1(c)}`, 'Z',
+    ].join('');
+  }
+
+  function drawFrame(win) {
+    const w = win.offsetWidth;
+    const h = win.offsetHeight;
+    if (!w || !h || getComputedStyle(win).visibility === 'hidden') return;
+
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('class', 'frame-draw');
+    svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.setAttribute('aria-hidden', 'true');
+    const path = document.createElementNS(SVG_NS, 'path');
+    path.setAttribute('d', framePathD(w, h));
+    svg.append(path);
+    win.append(svg);
+
+    const len = path.getTotalLength();
+    path.style.strokeDasharray = `${len}`;
+    path.style.strokeDashoffset = `${len}`;
+    win.classList.add('drawing');
+    void svg.getBoundingClientRect(); // commit the undrawn state first
+
+    path.style.transition = `stroke-dashoffset ${DRAW_MS}ms cubic-bezier(.25,.8,.25,1)`;
+    path.style.strokeDashoffset = '0';
+    setTimeout(() => {
+      win.classList.remove('drawing'); // frame + tabs fade in underneath
+      svg.classList.add('gone');
+      setTimeout(() => svg.remove(), 420);
+    }, DRAW_MS);
+  }
+
+  function drawFrames() {
+    if (REDUCED_MOTION) return;
+    for (const win of document.querySelectorAll('.win')) drawFrame(win);
   }
 
   // ------------------------------------------------------- burn-in shift
@@ -1094,14 +1363,17 @@
   // load (kiosk restart). Black glass, line-work only, no sound; the whole
   // thing is cleared from the DOM when done. Under prefers-reduced-motion we
   // skip straight to the dashboard.
-  function bootAnimation() {
+  function bootAnimation(whenDone = () => {}) {
     const boot = document.getElementById('boot');
-    if (!boot) return;
+    if (!boot) {
+      whenDone();
+      return;
+    }
 
-    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    if (reduce) {
+    if (REDUCED_MOTION) {
       boot.classList.add('gone');
       boot.remove();
+      whenDone();
       return;
     }
 
@@ -1109,6 +1381,7 @@
     const sweep = boot.querySelector('.boot-sweep');
     if (!textEl || !sweep) {
       boot.remove();
+      whenDone();
       return;
     }
 
@@ -1122,6 +1395,7 @@
       timers.push(setTimeout(() => {
         boot.classList.add('gone');
         boot.remove();
+        whenDone();
       }, 540));
     };
 
@@ -1142,16 +1416,22 @@
   }
 
   paintClock();
+  modes.sync();
   hydrate();
   pollOnce();
   connect();
   tickVinyl();
   hermyRun();
   maybeGreet();
-  nightWatch();
+  scanWatch();
   setInterval(shift, BURN_IN_MS);
-  setInterval(checkImminent, 1_000);
-  bootAnimation();
+  // One second-hand for both: the imminent-event check and the calm/active/night
+  // decision are equally cheap and neither wants its own timer.
+  setInterval(() => {
+    modes.tick();
+    checkImminent();
+  }, 1_000);
+  bootAnimation(drawFrames);
 
   // A kiosk left running for weeks accumulates renderer cruft; a nightly
   // reload while the panel is dark costs nothing.

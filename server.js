@@ -5,6 +5,7 @@ import { DiskCache } from './src/cache.js';
 import { DisplayController, requireDisplayToken } from './src/display.js';
 import { createLogger } from './src/logger.js';
 import modules from './src/modules/index.js';
+import { createPresenceHandler } from './src/presence.js';
 import { Scheduler } from './src/scheduler.js';
 import { createEventStream } from './src/sse.js';
 import { Store } from './src/store.js';
@@ -52,6 +53,17 @@ app.post('/api/say', requireDisplayToken(config), (req, res) => {
   events.broadcast('say', { text, holdMs });
   res.json({ ok: true, clients: events.size });
 });
+
+// Presence ping: an mmWave sensor (or curl, for now) telling the mirror that
+// someone is standing in front of it. The server keeps no presence state — it
+// just relays the ping so the kiosk can run its animations at full intensity
+// for a while. Same token as /api/say. Body (all optional):
+// { present?, source?, holdMs? }.
+app.post(
+  '/api/presence',
+  requireDisplayToken(config),
+  createPresenceHandler({ events, log: createLogger('presence') }),
+);
 
 // Operational view; deliberately not under /api so the state blob stays exactly
 // the shape the frontend contract promises.

@@ -304,6 +304,25 @@ Soft state is what the mirror actually obeys: display off fades the whole
 dashboard to pure black, pushed to every client instantly over SSE. On a two-way
 mirror, black **is** off — the panel relay is a power optimisation on top.
 
+### Presence → full-intensity motion
+
+The kiosk idles in `calm`: every ambient animation runs, at ~40% intensity on
+slow cycles. A presence ping switches it to `active` for 90 seconds — same
+animations, roughly double tempo, full brightness. A Spotify track change and a
+`/api/say` push do the same thing on their own.
+
+```bash
+curl -fsS -X POST http://HOST:8390/api/presence \
+  -H "Authorization: Bearer $DISPLAY_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"source":"mmwave"}'
+```
+
+The server keeps no presence state: the ping is normalised and relayed to the
+kiosk over SSE, nothing more. Body fields are all optional — `present` (default
+`true`), `source`, `holdMs`. Between 22:30 and 05:00 the mirror is in `night` and
+ignores the escalation, and `prefers-reduced-motion` disables it everywhere.
+
 `DISPLAY_OFF_TIME` (default 00:30) is a scheduled fallback so the mirror never
 stays lit all night. Waking is external.
 
@@ -355,6 +374,8 @@ curl -fsS -X POST http://HOST:8390/api/display/on \
 | `GET` | `/api/events` | SSE; pushes the same blob on change |
 | `POST` | `/api/display/on` | Bearer `DISPLAY_TOKEN` |
 | `POST` | `/api/display/off` | Bearer `DISPLAY_TOKEN` |
+| `POST` | `/api/say` | Push a line of Hermy dialogue. Bearer `DISPLAY_TOKEN` |
+| `POST` | `/api/presence` | "Someone is at the mirror" — runs the animations at full intensity for 90s. Bearer `DISPLAY_TOKEN` |
 | `GET` | `/healthz` | Per-module ok/error/age, SSE client count |
 | `GET` | `/preview` | Scaled 1080×1920 frame (dev) |
 | `GET` | `/mockups/editorial.html` | Design direction A |

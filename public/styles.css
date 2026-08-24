@@ -8,7 +8,8 @@
     · window frames: thick outlines with stepped/notched corner cuts and a
       thin inner rule (border-image, see --frame-src) — never a filled panel
     · header tabs: skewed parallelograms sitting ON the frame edge, with a
-      thin amber accent on the leading edge (the only yellow anywhere)
+      thin amber accent on the leading edge (amber is the notice colour and
+      appears nowhere else except a high UV index)
     · Navi emblem: ring + core + diagonal band, line-work in the PET header
     · HP-gauge temperature range: segmented bar with angled end caps
     · chip cards: rectangular task tiles with a chip-code letter square
@@ -18,15 +19,21 @@
     · #000 is the only fill. Black glass = mirror. No greys as backgrounds.
     · Default luminance is the muted cyan ramp; #10f8f8 is reserved for the
       single "online" signal; red exists as a token for real alerts only.
-    · Density budget: lit content is confined to a top band (~25% of the
-      panel) and a bottom band (~18%). Everything between is unlit, unframed
-      glass — that is where the viewer's face is. A module earns a window
-      frame by holding a list; one or two readouts get a tab or nothing.
-    · Centre band stays empty (.void) for the viewer.
+    · Density budget: lit content is confined to a top band (y 0..480) and a
+      bottom band (y 1250..1920). The face zone between them is unlit,
+      unframed glass — that is where the viewer's face is, and both bands clip
+      their own overflow so nothing can ever grow into it. A module earns a
+      window frame by holding a list; one or two readouts get a tab or nothing.
     · No scrollbars, no cursor, no focus rings, overflow hidden.
-    · No spinners. Content cross-fades slowly or not at all.
-    · Motion budget: one breathing status square + one two-frame BN cursor
-      blink. Nothing else moves.
+    · No spinners. Content cross-fades (150-250ms) or not at all.
+
+  Motion budget (see the token block below):
+    · everything animated is stroke-only line work: no fills light up, no
+      element grows brighter than its static self by more than a hair
+    · `calm` is the default and runs at ~40% intensity on slow cycles;
+      `active` (90s after a say / track change / presence ping) runs full;
+      `night` keeps the old wind-down look and never escalates
+    · prefers-reduced-motion switches all of it off, at the bottom of the file
 */
 
 @font-face {
@@ -72,6 +79,29 @@
 
   --pad: 52px;
   --fade: 900ms;
+  /* Module data swaps: fast enough to read as a crossfade, not a reveal. */
+  --fade-swap: 220ms;
+
+  /* ------------------------------------------------------- motion tokens
+     Calm is the default, so the calm values live here on :root; the `active`
+     block below overrides them for 90s at a time (app.js + public/mode.js).
+     --fx is the ambient intensity multiplier: ~40% calm, 100% active. */
+  --fx: 0.4;
+  --wx-spin: 132s; /* sun rays, one revolution */
+  --wx-drift: 20s; /* cloud / mist drift, one leg */
+  --wx-fall: 3.4s; /* one rain streak, top to bottom */
+  --wx-flake: 10s; /* one snowflake */
+  --wx-bolt: 11s; /* lightning flicker period */
+}
+
+/* 90s bursts: same choreography, roughly twice the tempo and full intensity. */
+body[data-mode='active'] {
+  --fx: 1;
+  --wx-spin: 54s;
+  --wx-drift: 9s;
+  --wx-fall: 1.5s;
+  --wx-flake: 5s;
+  --wx-bolt: 5s;
 }
 
 * {
@@ -112,11 +142,42 @@ body {
   font-family: var(--term);
   font-variant-numeric: tabular-nums lining-nums;
   display: grid;
-  /* head · top cluster · agenda frame · void · 2 mounts · bottom band */
-  grid-template-rows: auto auto auto 1fr auto auto auto;
+  /* Hard three-row composition: top band, face zone, bottom band. The two
+     fixed rows put the face zone at exactly y=480..1250 inside the 52px pad
+     (52 + 428 = 480, 480 + 770 = 1250). The mounts are position:fixed when
+     they hold anything and display:none when they do not, so they never take
+     a row here. */
+  grid-template-rows: 428px 770px 1fr;
   /* Burn-in mitigation: app.js nudges this a few px every ~10 minutes. */
   transform: translate3d(0, 0, 0);
   transition: transform 6s ease-in-out, opacity 1600ms ease;
+}
+
+/* Head · top cluster · agenda frame · leave-by. The agenda row takes the
+   slack, so the frame's bottom edge sits at a fixed y whatever the payload
+   holds, and overflow is clipped rather than pushed into the face zone. */
+.top-band {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  /* Keeps the last lit thing a hair clear of the y=480 boundary instead of
+     landing exactly on it. */
+  padding-bottom: 10px;
+  overflow: hidden;
+}
+
+/* Black, frameless, content-free: the reflection. */
+.face {
+  min-height: 0;
+}
+
+/* Bottom-anchored: the band grows upward from the panel edge, never down. */
+.bottom-band {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
 }
 
 /* Display "off": on a two-way mirror, pure black is off. */
@@ -128,7 +189,7 @@ body.off #root {
 .body,
 .slot {
   opacity: 1;
-  transition: opacity var(--fade) ease;
+  transition: opacity var(--fade-swap) ease;
 }
 
 .body.fading,
@@ -162,6 +223,69 @@ body.off #root {
   opacity: 0.45;
   pointer-events: none;
   z-index: 0;
+  /* Keeps the scanline sweep inside the window. Borders are not clipped by
+     overflow, so the notched frame itself is untouched. */
+  overflow: hidden;
+  transition: opacity 500ms ease;
+}
+
+/* Ambient life: every few minutes one frame gets a single dim scanline, 1s,
+   top to bottom. app.js picks the frame and the cadence (slower when calm). */
+.win .frame::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(216, 248, 255, 0.55), transparent);
+  opacity: 0;
+}
+
+.win.scanning .frame::after {
+  animation: frame-scan 1s ease-in-out;
+}
+
+@keyframes frame-scan {
+  0% {
+    top: 0;
+    opacity: 0;
+  }
+  18%,
+  82% {
+    opacity: calc(0.42 * var(--fx));
+  }
+  100% {
+    top: calc(100% - 2px);
+    opacity: 0;
+  }
+}
+
+/* First paint: the notched outline draws itself in (app.js builds the path at
+   the window's real pixel size and animates stroke-dashoffset), then hands over
+   to the border-image frame and the tabs, which fade in behind it. */
+.frame-draw {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: none;
+  stroke: var(--navy);
+  stroke-width: 2.6;
+  opacity: 0.7;
+  pointer-events: none;
+  z-index: 1;
+  transition: opacity 400ms ease;
+}
+
+.frame-draw.gone {
+  opacity: 0;
+}
+
+.win.drawing .frame,
+.win.drawing .tab {
+  opacity: 0;
 }
 
 /* Header tab ON the frame edge: skewed parallelogram, black-backed so it
@@ -179,6 +303,24 @@ body.off #root {
   box-shadow: inset 4px 0 0 var(--amber-edge);
   transform: skewX(-14deg);
   z-index: 2;
+  transition: opacity 500ms ease;
+}
+
+/* Data landed: the tab that labels the module shimmers once. Brightness only —
+   no geometry moves, and the amber inset edge survives untouched. */
+.tab.shimmer,
+.news .tag.shimmer {
+  animation: tab-shimmer 700ms ease-out;
+}
+
+@keyframes tab-shimmer {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  35% {
+    filter: brightness(calc(1 + var(--fx)));
+  }
 }
 
 .tab > span {
@@ -237,7 +379,7 @@ body.off #root {
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--fg-3);
-  padding-bottom: 26px;
+  padding-bottom: 20px;
 }
 
 .navi {
@@ -277,13 +419,15 @@ body.off #root {
   animation: breathe 6s ease-in-out infinite;
 }
 
+/* The one always-on cyan element. It breathes harder while active — the whole
+   difference between the modes is amplitude and tempo, never new elements. */
 @keyframes breathe {
   0%,
   100% {
     opacity: 0.25;
   }
   50% {
-    opacity: 0.7;
+    opacity: calc(0.36 + 0.34 * var(--fx));
   }
 }
 
@@ -302,23 +446,53 @@ body.off #root {
 /* Clock and weather occupy the two upper corners; the wide gap between them
    is deliberate — it is the first of the mirror's reflection space. */
 .deck {
+  min-height: 0;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 40px;
 }
 
+.masthead {
+  min-width: 0;
+}
+
 .clock {
-  font-size: 144px;
+  font-size: 124px;
   line-height: 0.92;
   letter-spacing: 0.01em;
   white-space: nowrap;
   color: var(--fg);
 }
 
+/* One cell per character so a changed digit can tick in place. tabular-nums on
+   #root keeps the cells from reflowing as the numbers change. */
+.clock .ch {
+  display: inline-block;
+  /* The AM/PM separator is one of these cells: without `pre` the browser
+     collapses that lone space and the clock reads "2:30AM". */
+  white-space: pre;
+}
+
+.clock .ch.tick {
+  animation: digit-tick 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Translate + fade, never a flip-card: the new digit slides up into its cell. */
+@keyframes digit-tick {
+  0% {
+    transform: translateY(0.16em);
+    opacity: 0.15;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
 .dateline {
-  padding-top: 10px;
-  font-size: 24px;
+  padding-top: 6px;
+  font-size: 22px;
   letter-spacing: 0.14em;
   color: var(--fg-3);
 }
@@ -327,6 +501,7 @@ body.off #root {
    over one tomorrow line, right-aligned against the panel edge. */
 .wx-deck {
   flex: none;
+  min-height: 0;
   text-align: right;
 }
 
@@ -354,18 +529,145 @@ body.off #root {
 }
 
 .wx-now.sm > .wxicon {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
+}
+
+/* -------------------------------------------------- animated weather glyphs
+
+   Each glyph is a handful of stroke-only paths (app.js ICONS), tagged by role so
+   the weather itself moves: rays turn, clouds drift a couple of px, rain and
+   drizzle fall, snow settles, lightning flickers. Durations come from the mode
+   tokens, so calm is the same choreography at half tempo. transform-box keeps
+   the rotation origins in the 48-unit viewBox regardless of rendered size. */
+
+.wxicon path {
+  transform-box: view-box;
+}
+
+.wx-rays {
+  transform-origin: 24px 24px;
+  animation: wx-spin var(--wx-spin) linear infinite;
+}
+
+.wx-cloud {
+  animation: wx-drift var(--wx-drift) ease-in-out infinite alternate;
+}
+
+.wx-mist {
+  animation: wx-mist var(--wx-drift) ease-in-out infinite alternate;
+}
+
+.wx-drop {
+  animation: wx-fall var(--wx-fall) linear infinite;
+}
+
+.wx-dash {
+  animation: wx-drizzle var(--wx-fall) linear infinite;
+}
+
+.wx-flake {
+  animation: wx-settle var(--wx-flake) linear infinite;
+}
+
+.wx-bolt {
+  animation: wx-flicker var(--wx-bolt) steps(1, end) infinite;
+}
+
+@keyframes wx-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes wx-drift {
+  from {
+    transform: translateX(-1.5px);
+  }
+  to {
+    transform: translateX(1.5px);
+  }
+}
+
+@keyframes wx-mist {
+  from {
+    transform: translateX(-2.5px);
+  }
+  to {
+    transform: translateX(2.5px);
+  }
+}
+
+@keyframes wx-fall {
+  0% {
+    transform: translate(1.5px, -7px);
+    opacity: 0;
+  }
+  22%,
+  70% {
+    opacity: calc(0.35 + 0.6 * var(--fx));
+  }
+  100% {
+    transform: translate(-1.5px, 7px);
+    opacity: 0;
+  }
+}
+
+@keyframes wx-drizzle {
+  0% {
+    transform: translateY(-4px);
+    opacity: 0;
+  }
+  30%,
+  70% {
+    opacity: calc(0.35 + 0.6 * var(--fx));
+  }
+  100% {
+    transform: translateY(5px);
+    opacity: 0;
+  }
+}
+
+@keyframes wx-settle {
+  0% {
+    transform: translate(0, -6px);
+    opacity: 0;
+  }
+  25%,
+  75% {
+    opacity: calc(0.4 + 0.55 * var(--fx));
+  }
+  50% {
+    transform: translate(1.5px, 0);
+  }
+  100% {
+    transform: translate(-1.5px, 6px);
+    opacity: 0;
+  }
+}
+
+/* Two quick strikes, then a long dark gap. Never a full-glyph flash. */
+@keyframes wx-flicker {
+  0%,
+  4%,
+  9%,
+  100% {
+    opacity: calc(0.3 + 0.35 * var(--fx));
+  }
+  2%,
+  7% {
+    opacity: 1;
+  }
 }
 
 .wx-now .temp {
-  font-size: 68px;
+  font-size: 62px;
   line-height: 0.9;
   color: var(--fg);
 }
 
 .wx-now .hilo {
-  font-size: 30px;
+  font-size: 28px;
   line-height: 1;
   color: var(--fg-2);
 }
@@ -388,12 +690,25 @@ body.off #root {
 }
 
 .wx.next:not(:empty) {
-  margin-top: 14px;
+  margin-top: 10px;
 }
 
-/* AQI chip: small dim tag in the top band, below weather, right-aligned. */
-#aqi-chip {
+/* Rain + AQI tags share one right-aligned row: two conditional chips stacked
+   would cost the agenda frame a row of its own. The row disappears entirely
+   when neither chip is painted. */
+.wx-chips {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
   margin-top: 10px;
+}
+
+.wx-chips:not(:has(.wx-rain-chip, .aqi-chip)) {
+  display: none;
+}
+
+#aqi-chip {
   text-align: right;
 }
 
@@ -435,12 +750,8 @@ body.off #root {
   font-size: 11px;
 }
 
-/* "Rain incoming" chip: a small, dim cyan line under the readout. Brighter
-   than the faint astro/labels but still restrained — no filled panel. */
-.wx-rain:not(:empty) {
-  margin-top: 12px;
-}
-
+/* "Rain incoming" chip: a small, dim cyan tag beside the AQI one. Brighter
+   than the faint labels but still restrained — no filled panel. */
 .wx-rain-chip {
   font-family: var(--pixel);
   font-size: 15px;
@@ -455,8 +766,8 @@ body.off #root {
 .cond-text {
   max-width: 230px;
   margin-left: auto;
-  padding-top: 8px;
-  font-size: 20px;
+  padding-top: 6px;
+  font-size: 19px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   white-space: nowrap;
@@ -465,38 +776,54 @@ body.off #root {
   color: var(--fg-3);
 }
 
-/* Astro line: moon glyph + phase + sunrise/sunset + UV, one dim row. */
-.astro-line {
+/* Sun/UV readout under the clock. This used to be a dim 16px one-liner with a
+   moon phase in it; the moon is gone and what is left is a real readout —
+   line-work glyph plus value, three columns, at agenda text size. Still
+   outline-only, still nowhere near the brightness of the clock. */
+#astro-line:not(:empty) {
+  margin-top: 12px;
+}
+
+.astro-strip {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-  padding-top: 8px;
+  gap: 30px;
+}
+
+.astro-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.astro-glyph {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  fill: none;
+  stroke: currentColor;
+  color: var(--fg-3);
+}
+
+.astro-val {
+  font-size: 26px;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  color: var(--fg-2);
+  white-space: nowrap;
+}
+
+/* UV is the one that means "put a hat on", so it takes the amber notice token
+   the tabs use rather than the neutral ramp. */
+.astro-item.uv .astro-glyph {
+  color: var(--amber-edge);
+}
+
+.astro-item.uv .astro-val {
+  font-family: var(--pixel);
+  /* Press Start 2P is an 8px-grid face: render at integer multiples only. */
   font-size: 16px;
   letter-spacing: 0.12em;
-  color: var(--fg-4);
-  text-transform: uppercase;
-}
-
-.astro-line svg {
-  flex: none;
-  stroke: currentColor;
-  fill: none;
-  vertical-align: middle;
-}
-
-.astro-phase {
-  font-family: var(--pixel);
-  font-size: 13px;
-  letter-spacing: 0.14em;
-}
-
-.astro-sep {
-  color: var(--fg-4);
-}
-
-.astro-line:not(:empty) {
-  margin-top: 4px;
 }
 
 /* HP-gauge temperature range: lo ▰▰▰▱▱ hi. Segmented bar, skewed end caps,
@@ -506,11 +833,11 @@ body.off #root {
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
-  margin-top: 14px;
+  margin-top: 10px;
 }
 
 .hp .rv {
-  font-size: 19px;
+  font-size: 18px;
   color: var(--muted);
 }
 
@@ -535,12 +862,27 @@ body.off #root {
 
 /* --------------------------------------------------------- agenda frame */
 
-/* The only frame in the top band: two agenda columns, one window. */
+/* The only frame in the top band: two agenda columns, one window. It takes the
+   slack row of .top-band, so its bottom edge lands just above the face zone
+   whatever the agenda holds. */
 .days {
+  min-height: 0;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 40px;
-  margin-top: 32px;
+  margin-top: 10px;
+  padding: 22px 32px 18px 36px;
+}
+
+/* Last line of defence: an unusually tall agenda clips inside its own window
+   instead of reaching down into the reflection. The offset margin/padding pair
+   widens the clip box to the left without moving the text, so the .sel cursor
+   arrow — which hangs 17px outside the column — survives the clip. */
+.days .cal {
+  min-height: 0;
+  overflow: hidden;
+  margin-left: -17px;
+  padding-left: 17px;
 }
 
 .agenda {
@@ -550,10 +892,10 @@ body.off #root {
 .agenda li {
   position: relative;
   display: grid;
-  grid-template-columns: 92px minmax(0, 1fr);
+  grid-template-columns: 88px minmax(0, 1fr);
   gap: 12px;
-  padding-bottom: 10px;
-  font-size: 22px;
+  padding-bottom: 7px;
+  font-size: 20px;
   line-height: 1.2;
   color: var(--fg-2);
 }
@@ -600,7 +942,7 @@ body.off #root {
   letter-spacing: 0.24em;
   text-transform: uppercase;
   color: var(--fg-4);
-  padding-top: 8px;
+  padding-top: 6px;
 }
 
 /* BN cursor: right-pointing selection arrow on the "current" row, with the
@@ -630,8 +972,9 @@ body.off #root {
 
 /* ------------------------------------------------- imminent-event alert */
 
-/* A fixed clone of an agenda row, lifted to centre-top and framed by four
-   line-work HUD corner brackets. Pure cyan, dimmed to keep the OLED budget. */
+/* A fixed clone of an agenda row, lifted out of the frame down to the alert rail
+   just below the face zone (app.js ALERT_TOP) and framed by four line-work HUD
+   corner brackets. Pure cyan, dimmed to keep the OLED budget. */
 .hud-alert {
   position: fixed;
   z-index: 60;
@@ -647,10 +990,10 @@ body.off #root {
 
 .hud-row {
   display: grid;
-  grid-template-columns: 92px minmax(0, 1fr);
+  grid-template-columns: 88px minmax(0, 1fr);
   gap: 12px;
   align-items: baseline;
-  font-size: 22px;
+  font-size: 20px;
   line-height: 1.2;
   white-space: nowrap;
 }
@@ -755,8 +1098,8 @@ body.off #root {
 .leaveby {
   display: flex;
   align-items: center;
-  min-height: 2.2em;
-  margin-top: 12px;
+  min-height: 1.6em;
+  margin-top: 8px;
 }
 
 .leaveby:empty {
@@ -798,19 +1141,22 @@ body.off #root {
   flex-direction: column;
   justify-content: flex-end;
   align-items: flex-start;
-  gap: 18px;
+  gap: 8px;
 }
 
 .band-right .tasks {
   align-self: stretch;
 }
 
-/* Hermy.EXE avatar: one 32px cell of the sheet, scaled 4x, hard pixels.
-   Kept dim so the sprite reads as a resident, not a lamp. */
+/* Hermy.EXE avatar: one 32px cell of the sheet, scaled 4x, hard pixels. Sits on
+   the top edge of the tasks frame, pushed to the far side of the column so it
+   never crowds the "tasks" tab on the near side. Kept dim so the sprite reads as
+   a resident, not a lamp. */
 .hermy {
   width: 128px;
   height: 128px;
-  margin-left: 10px;
+  margin-left: auto;
+  margin-right: 8px;
   background-image: url('/hermy_sprites.png');
   background-repeat: no-repeat;
   background-size: 512px 384px;
@@ -1044,14 +1390,6 @@ body.off #root {
   color: var(--muted);
 }
 
-/* ------------------------------------------------- sparse centre (face) */
-
-/* The point of the whole pass: a guaranteed floor of black, frameless glass
-   between the two bands, whatever the modules are holding. */
-.void {
-  min-height: 700px;
-}
-
 /* ------------------------------------------------------------- stale dot */
 
 .dot {
@@ -1146,12 +1484,13 @@ body.night #hermy-dialogue {
 /* ------------------------------------------------------ Spotify vinyl state */
 
 /* The mount is removed from the layout when idle so it never steals space from
-   the top/bottom bands. When active it floats over the approved black centre. */
+   the top/bottom bands. When active it floats over the face zone — the one
+   grandfathered exception, so it is sized and anchored to sit low. */
 #now-playing.mount:not(:empty) {
   position: fixed;
   z-index: 10;
   left: 50%;
-  top: 46%;
+  top: 53%;
   width: min(82vw, 720px);
   display: flex;
   justify-content: center;
@@ -1184,7 +1523,7 @@ body.night #hermy-dialogue {
 
 .vinyl-disc {
   position: relative;
-  width: min(45vw, 500px);
+  width: min(40vw, 430px);
   aspect-ratio: 1;
 }
 
@@ -1397,11 +1736,39 @@ body.night #hermy-dialogue {
   }
 }
 
+/* ------------------------------------------------------ prefers-reduced-motion
+
+   The whole wow pass is opt-out in one place: no rotation, no falling rain, no
+   scanline, no digit ticks, no shimmer, no drawn-in frames. Content still
+   changes — it just changes instantly. app.js honours the same query for the
+   boot sequence, the frame draw-in and the mode machine (which then never
+   escalates past `calm`). */
+
 @media (prefers-reduced-motion: reduce) {
   .vinyl-record {
     animation: none;
   }
+
   #boot {
+    transition: none;
+  }
+
+  .status-dot,
+  .sel::before,
+  .wxicon path,
+  .win .frame::after,
+  .clock .ch,
+  .tab,
+  .news .tag,
+  .hud-alert.pulse .hud-row,
+  .agenda li.shake {
+    animation: none !important;
+  }
+
+  .body,
+  .slot,
+  .win .frame,
+  .tab {
     transition: none;
   }
 }
