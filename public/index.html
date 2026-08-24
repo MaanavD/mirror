@@ -161,12 +161,18 @@
           </div>
 
           <div class="band-right">
-            <!-- Hermy.EXE idle avatar: 12-frame hand-built sprite sheet, sitting
-                 directly on the top edge of the tasks frame. -->
-            <div id="hermy" class="hermy" aria-hidden="true"></div>
-            <!-- S4: Hermy commentary + enemy nameplate (weather battle). -->
-            <div id="hermy-enemy" class="hermy-enemy" aria-hidden="true"></div>
-            <div id="hermy-caption" class="hermy-caption"></div>
+            <!-- Hermy.EXE idle avatar + commentary. Caption sits BESIDE the
+                 sprite (speech to his left), not under him: the stacked layout
+                 cost ~45px and pushed the sprite's head into the band's
+                 overflow clip. -->
+            <div class="hermy-row">
+              <div class="hermy-side">
+                <!-- S4: enemy nameplate (weather battle) + commentary. -->
+                <div id="hermy-enemy" class="hermy-enemy" aria-hidden="true"></div>
+                <div id="hermy-caption" class="hermy-caption"></div>
+              </div>
+              <div id="hermy" class="hermy" aria-hidden="true"></div>
+            </div>
             <section class="win tasks" id="notion" data-module="notion">
               <div class="frame"></div>
               <span class="tab"><span>tasks</span></span>
