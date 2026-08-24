@@ -1381,15 +1381,15 @@ body.off #root {
   text-transform: uppercase;
 }
 
-/* Truncates rather than overflowing its half of the strip: at this size a
-   spelled-out light name ("living room panels") is wider than the cell, and the
-   cell's right edge is where the corridor starts. */
+/* Sized so the longest real name ("BEDSTAGONS", 10 glyphs) fits its half of
+   the strip without ellipsing: the cell's right edge is where the corridor
+   starts, so the room comes out of glyph size and tracking, not the cell. */
 .nanoleaf-name {
   overflow: hidden;
   color: var(--fg-2);
   font-family: var(--pixel);
-  font-size: 18px;
-  letter-spacing: 0.12em;
+  font-size: 14px;
+  letter-spacing: 0.06em;
   line-height: 1.35;
   white-space: nowrap;
   text-overflow: ellipsis;
