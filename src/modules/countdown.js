@@ -20,10 +20,13 @@ export function parseMilestones(raw) {
   return out;
 }
 
-// "Flight to San Francisco (AC 739)" -> "SAN FRANCISCO". Flighty writes this
-// shape into the calendar; anything else falls back to the raw title.
+// "Flight to San Francisco (AC 739)" / "Flying to Toronto (AC 540)" ->
+// "SAN FRANCISCO" / "TORONTO". Flighty writes both shapes into the calendar;
+// anything else falls back to the raw title.
+export const FLIGHT_RE = /fl(?:ight|ying) to ([^(]+)/i;
+
 export function flightLabel(summary) {
-  const m = /flight to ([^(]+)/i.exec(String(summary ?? ''));
+  const m = FLIGHT_RE.exec(String(summary ?? ''));
   return (m ? m[1] : String(summary ?? 'flight')).trim().toUpperCase();
 }
 
@@ -76,23 +79,31 @@ async function nextFlight(config, now) {
   const timeMin = now.toISOString();
   const timeMax = new Date(now.getTime() + FLIGHT_HORIZON_DAYS * 86_400_000).toISOString();
 
-  const results = await Promise.allSettled(ids.map(async (id) => {
-    const params = new URLSearchParams({
-      timeMin, timeMax, q: 'flight', singleEvents: 'true', orderBy: 'startTime', maxResults: '5',
-    });
-    const payload = await fetchJson(`${CALENDAR_API}/${encodeURIComponent(id)}/events?${params}`, {
-      headers: { authorization: `Bearer ${accessToken}` },
-      timeoutMs: config.fetchTimeoutMs,
-    });
-    return payload.items ?? [];
-  }));
+  const queries = [];
+  for (const id of ids) {
+    // Flighty titles events either "Flight to X" or "Flying to X"; the
+    // Calendar API's q= is a plain text match, so each shape needs its own query.
+    for (const q of ['flight', 'flying']) {
+      queries.push((async () => {
+        const params = new URLSearchParams({
+          timeMin, timeMax, q, singleEvents: 'true', orderBy: 'startTime', maxResults: '5',
+        });
+        const payload = await fetchJson(`${CALENDAR_API}/${encodeURIComponent(id)}/events?${params}`, {
+          headers: { authorization: `Bearer ${accessToken}` },
+          timeoutMs: config.fetchTimeoutMs,
+        });
+        return payload.items ?? [];
+      })());
+    }
+  }
+  const results = await Promise.allSettled(queries);
 
   let best = null;
   for (const result of results) {
     if (result.status !== 'fulfilled') continue;
     for (const item of result.value) {
       if (item.status === 'cancelled') continue;
-      if (!/flight to /i.test(item.summary ?? '')) continue;
+      if (!FLIGHT_RE.test(item.summary ?? '')) continue;
       const start = new Date(item.start?.dateTime ?? item.start?.date ?? NaN);
       if (Number.isNaN(start.getTime()) || start.getTime() < now.getTime()) continue;
       if (!best || start.getTime() < best.startMs) {

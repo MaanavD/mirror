@@ -887,29 +887,18 @@ body.off #root {
   color: var(--amber-edge);
 }
 
-/* Days-until stack below the masthead clip line. Third child of the two-column
-   deck grid, so it is pinned explicitly: column 1, second row, with the rail
-   spanning both rows in column 2 — otherwise it would silently occupy the
-   rail's cell and push the whole right column down. It is the one piece of the
-   left column that prints below y=280, so its width is capped at 296px: the
-   corridor starts at x=340 and the column pads 40, leaving 300 of legal glass.
-   Rows stack vertically to stay inside that cap. Dimmer than astro because it
-   is anticipation, not action. */
-#countdown-line {
-  grid-column: 1;
-  grid-row: 2;
-  align-self: start;
-}
-
+/* Days-until stack at the bottom of the right rail, under the days frame and
+   the leave-by chip. The rail clips at its row edge, so no width or grid
+   pinning is needed here — it inherits the rail's column. Dimmer than the
+   agenda above it because it is anticipation, not action. */
 #countdown-line:not(:empty) {
-  margin-top: 26px;
+  margin-top: 22px;
 }
 
 .countdown-strip {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-width: 296px;
   overflow: hidden;
 }
 
