@@ -13,6 +13,7 @@ import notionModule from './notion.js';
 import quoteModule from './quote.js';
 import spotifyModule from './spotify.js';
 import weatherModule from './weather.js';
+import wellnessModule from './wellness.js';
 
 /**
  * Registration order = order of the keys in /api/state.modules.
@@ -29,6 +30,7 @@ export const modules = [
   hermyModule,
   leavebyModule,
   mysteryModule,
+  wellnessModule,
   quoteModule,
   notionModule,
   nanoleafModule,

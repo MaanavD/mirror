@@ -51,6 +51,7 @@ import { createModeMachine } from './mode.js';
   const bodies = {
     astro: [q('#astro-line')],
     countdown: [q('#countdown-line')],
+    wellness: [q('#wellness-line')],
     aqi: [q('#aqi-chip')],
     weather: [q('#wx-today'), q('#wx-tomorrow'), q('#wx-rain')],
     calendar: [q('#cal-today'), q('#cal-tomorrow')],
@@ -424,6 +425,25 @@ import { createModeMachine } from './mode.js';
     target.append(el('span', 'focus-text', parts.join('   ')));
   }
 
+  const WELLNESS_GLYPHS = {
+    CHARGED: '█▀█\n███\n ▀ ',
+    STEADY: ' ▄ \n█ █\n▀▀▀',
+    TIRED: '▀▄▀\n ▄ \n▄▀▄',
+    OVERLOADED: '█▄█\n█▄█\n▀▀▀',
+    STORMY: '▄██\n███\n▀▄▀',
+  };
+
+  function renderWellness([target], data) {
+    if (!data?.emotion || !data?.subline) return;
+    const glyph = WELLNESS_GLYPHS[data.emotion];
+    if (!glyph) return;
+    const window = el('div', 'wellness-window');
+    window.dataset.emotion = data.emotion;
+    window.append(el('div', 'wellness-glyph', glyph));
+    window.append(el('div', 'wellness-subline', data.subline));
+    target.append(window);
+  }
+
   // "9:00am" -> "9a", "9:30am" -> "9:30a": buys the title ~4 characters on the
   // narrow rail. Display-only; the server keeps the full label for leave-by.
   const compactTime = (label) =>
@@ -598,7 +618,6 @@ import { createModeMachine } from './mode.js';
 
   // F41 virus busting: each open Notion task is a Mettaur-class virus sprite +
   // truncated name. >6 tasks => 6 + "+N VIRUSES". Empty => "AREA CLEAN".
-  const SVG_NS = 'http://www.w3.org/2000/svg';
   const VIRUS_STROKE = ['#f83818', '#10f8f8', '#f8d018']; // alert / cyan / amber
 
   // Original line-art virus (NOT ripped assets): a dome, two eyes, a mouth that
@@ -801,6 +820,7 @@ import { createModeMachine } from './mode.js';
     weather: renderWeather,
     astro: renderAstro,
     countdown: renderCountdown,
+    wellness: renderWellness,
     aqi: renderAqi,
     calendar: renderCalendar,
     quote: renderQuote,

@@ -935,6 +935,66 @@ body.off #root {
   color: var(--fg-2);
 }
 
+/* Wellness is the small PET readout immediately below countdown. Its left inset
+   starts at x=740 on the 1080px panel, leaving the reflected-face corridor
+   untouched even though the shared rail begins at x=640. */
+#wellness-line:not(:empty) {
+  margin-top: 16px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* CALM keeps the PET glyph as a quiet status light; NIGHT removes the slot. */
+body[data-mode='calm'] #wellness-line .wellness-subline {
+  display: none;
+}
+
+body[data-mode='night'] #wellness-line {
+  visibility: hidden;
+}
+
+.wellness-window {
+  min-width: 0;
+  width: calc(100% - 100px);
+  margin-left: 100px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  overflow: hidden;
+}
+
+.wellness-glyph {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  overflow: hidden;
+  color: var(--fg-2);
+  font-family: var(--pixel);
+  font-size: 16px;
+  line-height: 16px;
+  white-space: pre;
+}
+
+.wellness-window[data-emotion='CHARGED'] .wellness-glyph {
+  color: var(--cyan);
+}
+
+.wellness-window[data-emotion='STORMY'] .wellness-glyph {
+  color: var(--alert);
+}
+
+.wellness-subline {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg-3);
+  font-family: var(--pixel);
+  font-size: 16px;
+  line-height: 16px;
+  letter-spacing: 0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .astro-item.uv .astro-val {
   font-family: var(--pixel);
   /* Press Start 2P is an 8px-grid face: render at integer multiples only, so UV
