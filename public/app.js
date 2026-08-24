@@ -33,7 +33,7 @@ import { createModeMachine } from './mode.js';
   const IMMINENT_MS = 10 * 60_000; // within 10 min → full detach alert
   const URGENT_MS = 60_000; // under 60 s → reserved shake instead
   const HOLD_MS = 8_000; // bracket holds for 8 s, then returns
-  const ALERT_TOP = 1280; // below the face zone, in the bottom band's dead air
+  const ALERT_TOP = 1280; // below the reflected head, above the bottom band
   const ALERT_SCALE = 1.3;
   const firedAlerts = new Set(); // session-scoped guard
   let latestCalendar = null; // last calendar payload we rendered
@@ -45,8 +45,8 @@ import { createModeMachine } from './mode.js';
   const weekEl = document.getElementById('week');
 
   // A module may paint into several slots at once (weather splits into today's
-  // readout and one tomorrow line, calendar into the two agenda columns of the
-  // shared frame), so every entry is a list.
+  // readout and one tomorrow line, calendar into the two stacked day columns of
+  // the right rail's frame), so every entry is a list.
   const q = (selector) => document.querySelector(selector);
   const bodies = {
     astro: [q('#astro-line')],
@@ -402,7 +402,7 @@ import { createModeMachine } from './mode.js';
     return list;
   }
 
-  // The agenda frame has to fit inside the top band, so the glass shows fewer
+  // The agenda frame has to fit on the right rail, so the glass shows fewer
   // rows than the payload carries and folds the rest into the "+n more" line.
   const EVENTS_SHOWN = 3;
 
@@ -432,9 +432,9 @@ import { createModeMachine } from './mode.js';
 
   // ------------------------------------------------- imminent-event alert
 
-  // A fixed clone of an agenda row travels to the alert rail — the dead air just
-  // below the face zone, since the middle of the glass is his face — where it is
-  // framed by four cyan HUD corner brackets, micro-pulses twice, then flies home.
+  // A fixed clone of an agenda row travels to the alert rail — the dead air
+  // below the reflected head, which stops at about y=950 — where it is framed
+  // by four cyan HUD corner brackets, micro-pulses twice, then flies home.
   function findRow(id) {
     const rows = document.querySelectorAll('#cal-today li[data-event-id]');
     for (const row of rows) if (row.dataset.eventId === id) return row;
@@ -1285,11 +1285,14 @@ import { createModeMachine } from './mode.js';
   // First paint after the JACK IN overlay clears: each window's notched outline
   // draws itself on, stroke-dashoffset style, then hands over to the real
   // border-image frame. The path is generated at the window's actual pixel size
-  // with the same geometry the frame SVG uses (2px inset, 3.4px corner steps),
-  // so the drawn line lands exactly where the frame will be.
+  // with the same geometry the frame SVG uses (2px inset, 3.4px corner steps at
+  // the reference 12px border), so the drawn line lands exactly where the frame
+  // will be — including on the rail's one-size-down 9px frame, which scales the
+  // border-image slice and therefore scales the inset and the steps with it.
   const DRAW_MS = 900;
   const FRAME_INSET = 2;
   const FRAME_STEP = 3.4;
+  const FRAME_BORDER = 12;
 
   function framePathD(w, h, a = FRAME_INSET, s = FRAME_STEP) {
     const c = a + 2 * s; // where the corner stair meets the straight edge
@@ -1307,13 +1310,17 @@ import { createModeMachine } from './mode.js';
     const h = win.offsetHeight;
     if (!w || !h || getComputedStyle(win).visibility === 'hidden') return;
 
+    const frame = win.querySelector('.frame');
+    const border = frame ? parseFloat(getComputedStyle(frame).borderTopWidth) : FRAME_BORDER;
+    const scale = (Number.isFinite(border) && border > 0 ? border : FRAME_BORDER) / FRAME_BORDER;
+
     const svg = document.createElementNS(SVG_NS, 'svg');
     svg.setAttribute('class', 'frame-draw');
     svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
     svg.setAttribute('preserveAspectRatio', 'none');
     svg.setAttribute('aria-hidden', 'true');
     const path = document.createElementNS(SVG_NS, 'path');
-    path.setAttribute('d', framePathD(w, h));
+    path.setAttribute('d', framePathD(w, h, FRAME_INSET * scale, FRAME_STEP * scale));
     svg.append(path);
     win.append(svg);
 

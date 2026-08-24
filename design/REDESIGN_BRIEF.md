@@ -2,6 +2,16 @@
 
 Target: /home/hermes/mirror, 1080x1920 portrait, two-way mirror OLED. Background stays pure #000; light-on-black only; no large bright fills. Mega Man Battle Network (PET console) grammar per design/BN_REFERENCE.md is locked: notched line-work frames, skewed header tabs, cursor markers, chip cards, cyan/blue/white with restrained alert colors.
 
+> **Amended 2026-08-24 (edge-rail pass).** Constraints 1 and 2 below were written
+> from memory and got the shape of the problem wrong. A photograph of the glass in
+> use puts the reflected head at x 350..750, y 300..950 — a vertical column, not a
+> horizontal band, and the full-width calendar frame at y 290..462 landed straight
+> across his face rather than above it. The clear zone is therefore a CORRIDOR
+> (x 340..740, y 280..1600) and the composition is two edge rails either side of
+> it, with the calendar moved under the weather in the right rail. Constraints
+> 3-5 are unchanged. See the header comments in `public/index.html` and
+> `public/styles.css` for the geometry of record.
+
 ## Hard layout constraints (from Maanav, at the mirror)
 1. FACE ZONE: the vertical center band of the screen, roughly y=480..1250, must be black and content-free. His face reflects there. The current calendar frame sits exactly on his face. Nothing persistent may render in that zone (transient overlays like vinyl/now-playing are grandfathered but should sit low).
 2. Calendar (today/tomorrow) must move OUT of the face zone. Put it in the top band or bottom band; redesign the top band composition freely as long as total lit area does not grow.

@@ -22,16 +22,25 @@
     <!-- Fixed 1080x1920 portrait. BN window grammar per design/BN_REFERENCE.md:
          notched line-work frames with header tabs, no filled panels.
 
-         Composition is a hard three-row grid, because the mirror is the product:
+         Composition is EDGE RAILS, because the mirror is the product. Measured
+         off a photograph of the glass in use, the reflected head lands at about
+         x 350..750, y 300..950 — a vertical column down the middle, not a
+         horizontal band. So the clear zone is vertical too:
 
-           y   16.. 472  top band — everything lit above the face
-           y  472..1472  FACE ZONE — black, frameless, content-free. His face
-                         reflects here; only transient overlays may cross it.
-           y 1472..1904  bottom band — quote/news left, hermy over tasks right
+           CORRIDOR   x 340..740, y 280..1600 — black, frameless, content-free.
+                      His face reflects here. Nothing persistent renders in it;
+                      only transient overlays may cross it.
+           LEFT RAIL  clock / date / astro, top-left. It may use the full width
+                      of the glass because it all sits above the corridor.
+           RIGHT RAIL weather over the agenda over the leave-by chip, a single
+                      300px column pinned to the right edge (x 740..1040).
+           BOTTOM     quote/nanoleaf lower-left, hermy over tasks lower-right,
+                      news on the bottom edge — unchanged.
 
-         Both bands are pushed to within 16px of the panel edge so the face zone
-         gets every pixel they do not need. The bands clip their own overflow, so
-         no module can grow into it no matter what the payload says. -->
+         The two exceptions that still span the full width are the PET header at
+         the very top (y 16..72, above the corridor) and the news line at the
+         very bottom. Every band clips its own overflow, so no module can grow
+         into the corridor no matter what the payload says. -->
     <main id="root">
       <div class="top-band">
         <!-- PET header: Navi emblem + nameplate + net location. The breathing
@@ -54,12 +63,12 @@
           </div>
         </header>
 
-        <!-- Top cluster in the upper corners, per the BN reference's composition
-             note for 1080x1920: clock (with the sun/UV readout under it) left,
-             the whole weather readout right. Two or three lines of numbers do
-             not earn a window frame, so they get none — the HP gauge is the
-             only BN chrome here. -->
+        <!-- The two rails, split by the corridor. Per the BN reference's
+             composition note for 1080x1920, the side rail is where the mail and
+             alert lists belong; here it carries the whole right-hand stack. -->
         <section class="deck">
+          <!-- LEFT RAIL. Everything in it is above the corridor's top edge, so
+               it keeps the width — and the position — it always had. -->
           <div class="masthead">
             <!-- Clock is client-side only: it renders before, and without, any
                  network. app.js splits it into per-character cells so a changed
@@ -71,37 +80,47 @@
             <div class="slot astro" id="astro-line"></div>
           </div>
 
-          <div class="wx-deck" data-module="weather">
-            <div class="slot wx" id="wx-today"></div>
-            <div class="slot wx next" id="wx-tomorrow"></div>
-            <!-- Both conditional tags share one row so neither can push the
-                 readout down into the face zone. -->
-            <div class="wx-chips">
-              <div class="slot wx-rain" id="wx-rain"></div>
-              <div id="aqi-chip"></div>
+          <!-- RIGHT RAIL: one 300px column against the panel edge. -->
+          <div class="rail">
+            <div class="wx-deck" data-module="weather">
+              <div class="slot wx" id="wx-today"></div>
+              <div class="slot wx next" id="wx-tomorrow"></div>
+              <!-- Both conditional tags share a row when they fit and wrap
+                   onto two when they do not; neither is ever wide enough to
+                   push the rail out of its column. -->
+              <div class="wx-chips">
+                <div class="slot wx-rain" id="wx-rain"></div>
+                <div id="aqi-chip"></div>
+              </div>
             </div>
+
+            <!-- Agenda, under the weather. At rail width the old side-by-side
+                 columns do not fit, so today stacks over tomorrow and the
+                 second folder tab becomes a sub-head: same BN reading order,
+                 a quarter of the footprint. A column hides when its day is
+                 empty; the frame hides when both are. -->
+            <section class="win days" data-module="calendar">
+              <div class="frame"></div>
+              <span class="tab"><span>days</span></span>
+              <div class="cal-col">
+                <span class="cal-head">today</span>
+                <div class="slot cal" id="cal-today"></div>
+              </div>
+              <div class="cal-col aux">
+                <span class="cal-head">tomorrow</span>
+                <div class="slot cal" id="cal-tomorrow"></div>
+              </div>
+            </section>
+
+            <!-- Leave-by chip: dim line under the agenda frame, only visible
+                 when a leave-by time exists and is in the future. -->
+            <div class="leaveby" id="leaveby" data-module="leaveby"></div>
           </div>
         </section>
-
-        <!-- One frame for both agendas: two tabs on the same edge label the
-             columns, BN-style (today active, tomorrow inactive). A tab hides
-             with its column; the frame hides when both are empty. It lives in
-             the top band, clear of the face zone. -->
-        <section class="win days" data-module="calendar">
-          <div class="frame"></div>
-          <span class="tab"><span>today</span></span>
-          <span class="tab aux"><span>tomorrow</span></span>
-          <div class="slot cal" id="cal-today"></div>
-          <div class="slot cal" id="cal-tomorrow"></div>
-        </section>
-
-        <!-- Leave-by chip: single dim line under the calendar frame, only
-             visible when a leave-by time exists and is in the future. -->
-        <div class="leaveby" id="leaveby" data-module="leaveby"></div>
       </div>
 
-      <!-- The point of the whole pass: guaranteed black, frameless glass from
-           y=472 to y=1472. Nothing renders in here, ever. -->
+      <!-- Below the rails: guaranteed black, frameless glass all the way across
+           until the bottom band starts at y=1472. Nothing renders in here. -->
       <div class="face" aria-hidden="true"></div>
 
       <!-- Mount points: the vinyl is a stateful low-center overlay, not a grid

@@ -19,11 +19,11 @@
     · #000 is the only fill. Black glass = mirror. No greys as backgrounds.
     · Default luminance is the muted cyan ramp; #10f8f8 is reserved for the
       single "online" signal; red exists as a token for real alerts only.
-    · Density budget: lit content is confined to a top band (y 16..472) and a
-      bottom band (y 1472..1904). Both bands hug their own screen edge, which
-      makes the face zone between them as tall as the panel allows: it is unlit,
-      unframed glass — that is where the viewer's face is, and both bands clip
-      their own overflow so nothing can ever grow into it. A module earns a
+    · Density budget: the reflected head measures x 350..750, y 300..950 on the
+      real glass, so the clear zone is a vertical CORRIDOR (x 340..740, y
+      280..1600), not a horizontal band. Lit content lives on the two edge
+      rails either side of it and in the bottom band, and every container clips
+      its own overflow so nothing can grow into the corridor. A module earns a
       window frame by holding a list; one or two readouts get a tab or nothing.
     · No scrollbars, no cursor, no focus rings, overflow hidden.
     · No spinners. Content cross-fades (150-250ms) or not at all.
@@ -80,10 +80,16 @@
 
   /* Asymmetric on purpose: the panel's vertical edges are the cheapest space
      the composition has, so the bands are pushed almost to the glass and the
-     face zone keeps everything they give up. The horizontal inset stays wide
+     open middle keeps everything they give up. The horizontal inset stays wide
      enough that nothing reads as falling off the side. */
   --pad-y: 16px;
   --pad-x: 40px;
+
+  /* Right rail width. 40 (pad) + 660 (left rail) + 40 (gutter) + 300 = 1080,
+     so the rail occupies x 740..1040 and the corridor x 340..740 is whatever
+     the left rail does not use below its clip line. Widening this token eats
+     into the corridor from the right — it is the one number to keep honest. */
+  --rail-w: 300px;
   --fade: 900ms;
   /* Module data swaps: fast enough to read as a crossfade, not a reveal. */
   --fade-swap: 220ms;
@@ -148,35 +154,33 @@ body {
   font-family: var(--term);
   font-variant-numeric: tabular-nums lining-nums;
   display: grid;
-  /* Hard three-row composition: top band, face zone, bottom band. The two
-     fixed rows put the face zone at exactly y=472..1472 inside the 16px pad
-     (16 + 456 = 472, 472 + 1000 = 1472). The top row is sized so the agenda
-     frame keeps the same interior height it had at the old 52px pad — the band
-     moved up, it did not get shorter. The face row is deliberately far taller
-     than the old 770px: the reflection reaches lower than the first cut
-     assumed, so the bottom band's clip line moved down with it. The mounts are
-     position:fixed when they hold anything and display:none when they do not,
-     so they never take a row here. */
-  grid-template-rows: 456px 1000px 1fr;
+  /* Hard three-row composition: rails, open glass, bottom band. The rail row
+     runs y=16..816 and the open glass y=816..1472 (16 + 800 = 816, 816 + 656 =
+     1472), which leaves the bottom band exactly where it was. The rail row is
+     far taller than the stack it holds: its only job is to be the clip line
+     the right rail can never print past, and 816 keeps that line beside the
+     reflected head rather than across it. The mounts are position:fixed when
+     they hold anything and display:none when they do not, so they never take a
+     row here. */
+  grid-template-rows: 800px 656px 1fr;
   /* Burn-in mitigation: app.js nudges this a few px every ~10 minutes. */
   transform: translate3d(0, 0, 0);
   transition: transform 6s ease-in-out, opacity 1600ms ease;
 }
 
-/* Head · top cluster · agenda frame · leave-by. The agenda row takes the
-   slack, so the frame's bottom edge sits at a fixed y whatever the payload
-   holds, and overflow is clipped rather than pushed into the face zone. */
+/* PET head across the top, then the two rails. The rail row takes the slack,
+   so both rails are top-anchored and anything unusually tall is clipped here
+   rather than pushed further down the glass. */
 .top-band {
   min-height: 0;
   display: grid;
-  grid-template-rows: auto auto 1fr auto;
-  /* Keeps the last lit thing a hair clear of the y=472 boundary instead of
-     landing exactly on it. */
+  grid-template-rows: auto 1fr;
   padding-bottom: 10px;
   overflow: hidden;
 }
 
-/* Black, frameless, content-free: the reflection. */
+/* Black, frameless, content-free: below the reflected head, all the way
+   across. The corridor above it is held open by the rails themselves. */
 .face {
   min-height: 0;
 }
@@ -344,20 +348,9 @@ body.off #root {
   color: var(--fg-2);
 }
 
-/* Inactive tab: same geometry, no amber edge, dimmer line — BN's unselected
-   folder tab. Sits over the second column of the frame it labels. */
-.tab.aux {
-  left: 52%;
-  border-color: var(--line);
-  box-shadow: none;
-}
-
-.tab.aux > span {
-  color: var(--fg-4);
-}
-
-/* Nothing dangles: a tab hides with its column, the frame hides when every
-   column is empty, and a frameless section hides with its only child. */
+/* Nothing dangles: a day column hides with its own agenda, the frame hides
+   when every column is empty, and a frameless section hides with its only
+   child. */
 .days:not(:has(.slot > *)),
 .wx-deck:not(:has(.slot > *)),
 .tasks:not(:has(.body > *)),
@@ -372,9 +365,10 @@ body.off #root {
   display: none;
 }
 
-.days:has(#cal-today:empty) > .tab:not(.aux),
-.days:has(#cal-tomorrow:empty) > .tab.aux {
-  visibility: hidden;
+/* A day with no events takes its sub-head with it and gives the row back to
+   the grid, instead of leaving a labelled void inside the frame. */
+.cal-col:has(> .cal:empty) {
+  display: none;
 }
 
 /* --------------------------------------------------------------- PET head */
@@ -453,18 +447,37 @@ body.off #root {
 
 /* ------------------------------------------------------------ top cluster */
 
-/* Clock and weather occupy the two upper corners; the wide gap between them
-   is deliberate — it is the first of the mirror's reflection space. */
+/* The two rails. The gutter between them is not decoration — it is the top of
+   the corridor, and the right column is fixed rather than fluid so no payload
+   can widen the rail leftward into it. */
 .deck {
   min-height: 0;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 40px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--rail-w);
+  column-gap: 40px;
+  align-items: start;
 }
 
+/* The left rail is allowed the full 660px of its column because every line it
+   holds sits above the corridor: the clock ends near y=186 and the astro strip
+   near y=260. max-height is what makes that a rule instead of an observation —
+   at 208px the masthead cannot print past y=280 (72 + 208) whatever the date
+   string or the fallback font does, and the corridor stays open on both sides
+   below that line. */
 .masthead {
   min-width: 0;
+  max-height: 208px;
+  overflow: hidden;
+}
+
+/* Right rail: weather, then the agenda frame, then the leave-by chip, all
+   pinned to the panel edge and stacked top-down. */
+.rail {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 }
 
 .clock {
@@ -703,14 +716,17 @@ body.off #root {
   margin-top: 10px;
 }
 
-/* Rain + AQI tags share one right-aligned row: two conditional chips stacked
-   would cost the agenda frame a row of its own. The row disappears entirely
-   when neither chip is painted. */
+/* Rain + AQI tags, right-aligned under the readout. They share a row when they
+   fit and wrap onto two when they do not — at rail width "// RAIN 14:30" and a
+   spelled-out AQI level together run wider than 300px, and the rail has far
+   more vertical room to give than horizontal. The row disappears entirely when
+   neither chip is painted. */
 .wx-chips {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 12px;
+  gap: 8px 12px;
   margin-top: 10px;
 }
 
@@ -872,26 +888,71 @@ body.off #root {
 
 /* --------------------------------------------------------- agenda frame */
 
-/* The only frame in the top band: two agenda columns, one window. It takes the
-   slack row of .top-band, so its bottom edge lands just above the face zone
-   whatever the agenda holds.
+/* The only frame on the rails, and the module the whole reorientation was for:
+   at full width it printed straight across the reflected face. Here it is a
+   300px window under the weather, holding today stacked over tomorrow.
 
-   The top margin is the gap between the astro readout and this frame's stroke.
-   At 10px the two read as one glued block; the sun/UV line is a separate
+   The top margin is the gap between the weather readout and this frame's
+   stroke. At 10px the two read as one glued block; the weather is a separate
    readout and needs to look like one. */
 .days {
   min-height: 0;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 40px;
+  gap: 22px;
   margin-top: 34px;
-  padding: 20px 32px 16px 36px;
+  /* Slimmer than the shared .win padding on every side — the rail has 300px to
+     spend and the titles want all of it. The left inset still clears the .sel
+     cursor arrow, which hangs 17px outside the column. */
+  padding: 22px 18px 16px 32px;
+}
+
+/* One size down from every other window: same notched geometry, thinner
+   stroke and a smaller corner step, because a 300px frame drawn at the full
+   12px weight reads as a box rather than a rail. */
+.days .frame {
+  border-width: 9px;
+  opacity: 0.38;
+}
+
+/* Sub-head in place of the second folder tab: same pixel face and tracking as
+   a tab, with the tab's amber leading edge shrunk to a tick so it cannot read
+   as a window of its own. The negative margin hangs that tick in the same left
+   gutter the .sel cursor arrow uses, which keeps the label's first letter on
+   the same x as the agenda rows underneath it. */
+.cal-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-left: -17px;
+  padding-bottom: 9px;
+  font-family: var(--pixel);
+  font-size: 13px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+
+.cal-head::before {
+  content: '';
+  flex: none;
+  width: 3px;
+  height: 12px;
+  background: var(--amber-edge);
+}
+
+/* Tomorrow is the inactive folder: no amber, dimmer label. */
+.cal-col.aux .cal-head {
+  color: var(--fg-4);
+}
+
+.cal-col.aux .cal-head::before {
+  background: var(--line);
 }
 
 /* Last line of defence: an unusually tall agenda clips inside its own window
-   instead of reaching down into the reflection. The offset margin/padding pair
-   widens the clip box to the left without moving the text, so the .sel cursor
-   arrow — which hangs 17px outside the column — survives the clip. */
+   instead of reaching down the glass. The offset margin/padding pair widens
+   the clip box to the left without moving the text, so the .sel cursor arrow —
+   which hangs 17px outside the column — survives the clip. */
 .days .cal {
   min-height: 0;
   overflow: hidden;
@@ -899,15 +960,21 @@ body.off #root {
   padding-left: 17px;
 }
 
+.cal-col {
+  min-width: 0;
+}
+
 .agenda {
   list-style: none;
 }
 
+/* The time column is cut to what "12:45pm" and "all day" actually need: at
+   rail width every pixel it keeps is a pixel of title that ellipses away. */
 .agenda li {
   position: relative;
   display: grid;
-  grid-template-columns: 88px minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: 74px minmax(0, 1fr);
+  gap: 10px;
   padding-bottom: 7px;
   font-size: 20px;
   line-height: 1.2;
@@ -986,9 +1053,9 @@ body.off #root {
 
 /* ------------------------------------------------- imminent-event alert */
 
-/* A fixed clone of an agenda row, lifted out of the frame down to the alert rail
-   just below the face zone (app.js ALERT_TOP) and framed by four line-work HUD
-   corner brackets. Pure cyan, dimmed to keep the OLED budget. */
+/* A fixed clone of an agenda row, lifted out of the frame down to the alert
+   rail below the reflected head (app.js ALERT_TOP) and framed by four line-work
+   HUD corner brackets. Pure cyan, dimmed to keep the OLED budget. */
 .hud-alert {
   position: fixed;
   z-index: 60;
@@ -1004,8 +1071,8 @@ body.off #root {
 
 .hud-row {
   display: grid;
-  grid-template-columns: 88px minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: 74px minmax(0, 1fr);
+  gap: 10px;
   align-items: baseline;
   font-size: 20px;
   line-height: 1.2;
@@ -1107,27 +1174,30 @@ body.off #root {
 
 /* ---------------------------------------------------------- leave-by chip */
 
-/* Single dim line under the calendar frame: "> LEAVE BY 2:35 PM · 22 MIN
-   DRIVE". Hidden when empty so it does not consume grid space. */
+/* Dim tail of the right rail: "> LEAVE BY 2:35 PM · 22 MIN DRIVE". Hidden when
+   empty so it does not consume rail space. */
 .leaveby {
   display: flex;
   align-items: center;
   min-height: 1.6em;
-  margin-top: 8px;
+  margin-top: 12px;
 }
 
 .leaveby:empty {
   display: none;
 }
 
+/* The one line on the rails allowed to wrap. It is a full sentence in a pixel
+   face and does not fit across 300px, and shrinking it far enough to fit would
+   put it below the legibility floor for a readout five feet away. */
 .leaveby span {
   font-family: var(--pixel);
-  font-size: 14px;
-  letter-spacing: 0.14em;
+  font-size: 13px;
+  line-height: 1.7;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--fg-3);
   opacity: 0.6;
-  white-space: nowrap;
 }
 
 /* ----------------------------------------------------------- bottom band */
@@ -1518,8 +1588,8 @@ body.night #hermy-dialogue {
 /* ------------------------------------------------------ Spotify vinyl state */
 
 /* The mount is removed from the layout when idle so it never steals space from
-   the top/bottom bands. When active it floats over the face zone — the one
-   grandfathered exception, so it is sized and anchored to sit low. */
+   the rails or the bottom band. When active it floats across the corridor — the
+   one grandfathered exception, so it is sized and anchored to sit low. */
 #now-playing.mount:not(:empty) {
   position: fixed;
   z-index: 10;
