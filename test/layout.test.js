@@ -71,10 +71,11 @@ test('the right rail is a fixed narrow column pinned to the panel edge', () => {
   const token = /--rail-w:\s*(\d+)px/.exec(css);
   assert.ok(token, '--rail-w token missing');
   const width = Number(token[1]);
-  assert.ok(width <= 300, `rail is ${width}px, wider than the 300px budget`);
+  assert.ok(width <= 360, `rail is ${width}px, wider than the 360px budget`);
 
-  // 1080 - 40 (pad) - 300 = 740: the rail's left stroke is clear of the head.
-  assert.ok(1080 - 40 - width >= 740, 'the rail reaches left of x=740');
+  // 1080 - 40 (pad) - 360 = 680: still right of the reflected head's widest
+  // point; the 360 budget was traded for calendar-title room (Aug 23).
+  assert.ok(1080 - 40 - width >= 680, 'the rail reaches left of x=680');
 
   const deck = /\.deck\s*\{([^}]*)\}/.exec(css);
   assert.ok(deck, '.deck rule missing');

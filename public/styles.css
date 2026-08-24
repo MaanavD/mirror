@@ -85,11 +85,12 @@
   --pad-y: 16px;
   --pad-x: 40px;
 
-  /* Right rail width. 40 (pad) + 660 (left rail) + 40 (gutter) + 300 = 1080,
-     so the rail occupies x 740..1040 and the corridor x 340..740 is whatever
-     the left rail does not use below its clip line. Widening this token eats
-     into the corridor from the right — it is the one number to keep honest. */
-  --rail-w: 300px;
+  /* Right rail width. 40 (pad) + 600 (left rail) + 40 (gutter) + 360 = 1080,
+     so the rail occupies x 680..1040. 360 was a deliberate trade (Aug 23):
+     calendar titles truncated too hard at 300, and the rail's top block only
+     reaches y~554, above where the reflected head sits widest. Widening this
+     token eats into the corridor from the right — keep it honest. */
+  --rail-w: 360px;
   --fade: 900ms;
   /* Module data swaps: fast enough to read as a crossfade, not a reveal. */
   --fade-swap: 220ms;
