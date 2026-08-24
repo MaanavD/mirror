@@ -24,13 +24,14 @@
 
          Composition is a hard three-row grid, because the mirror is the product:
 
-           y    0.. 480  top band — everything lit above the face
-           y  480..1250  FACE ZONE — black, frameless, content-free. His face
+           y   16.. 472  top band — everything lit above the face
+           y  472..1472  FACE ZONE — black, frameless, content-free. His face
                          reflects here; only transient overlays may cross it.
-           y 1250..1920  bottom band — quote/news left, hermy over tasks right
+           y 1472..1904  bottom band — quote/news left, hermy over tasks right
 
-         The bands clip their own overflow, so no module can grow into the face
-         zone no matter what the payload says. -->
+         Both bands are pushed to within 16px of the panel edge so the face zone
+         gets every pixel they do not need. The bands clip their own overflow, so
+         no module can grow into it no matter what the payload says. -->
     <main id="root">
       <div class="top-band">
         <!-- PET header: Navi emblem + nameplate + net location. The breathing
@@ -100,7 +101,7 @@
       </div>
 
       <!-- The point of the whole pass: guaranteed black, frameless glass from
-           y=480 to y=1250. Nothing renders in here, ever. -->
+           y=472 to y=1472. Nothing renders in here, ever. -->
       <div class="face" aria-hidden="true"></div>
 
       <!-- Mount points: the vinyl is a stateful low-center overlay, not a grid

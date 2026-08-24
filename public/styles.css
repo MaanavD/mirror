@@ -19,8 +19,9 @@
     · #000 is the only fill. Black glass = mirror. No greys as backgrounds.
     · Default luminance is the muted cyan ramp; #10f8f8 is reserved for the
       single "online" signal; red exists as a token for real alerts only.
-    · Density budget: lit content is confined to a top band (y 0..480) and a
-      bottom band (y 1250..1920). The face zone between them is unlit,
+    · Density budget: lit content is confined to a top band (y 16..472) and a
+      bottom band (y 1472..1904). Both bands hug their own screen edge, which
+      makes the face zone between them as tall as the panel allows: it is unlit,
       unframed glass — that is where the viewer's face is, and both bands clip
       their own overflow so nothing can ever grow into it. A module earns a
       window frame by holding a list; one or two readouts get a tab or nothing.
@@ -77,7 +78,12 @@
      Colour is baked (#6078d8); per-frame brightness comes from opacity. */
   --frame-src: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'%3E%3Cpath fill='none' stroke='%236078d8' stroke-width='3' d='M10.5 2.5H49.5V6.5H53.5V10.5H57.5V49.5H53.5V53.5H49.5V57.5H10.5V53.5H6.5V49.5H2.5V10.5H6.5V6.5H10.5Z'/%3E%3Crect x='8.5' y='8.5' width='43' height='43' fill='none' stroke='%236078d8' stroke-opacity='.45'/%3E%3C/svg%3E");
 
-  --pad: 52px;
+  /* Asymmetric on purpose: the panel's vertical edges are the cheapest space
+     the composition has, so the bands are pushed almost to the glass and the
+     face zone keeps everything they give up. The horizontal inset stays wide
+     enough that nothing reads as falling off the side. */
+  --pad-y: 16px;
+  --pad-x: 40px;
   --fade: 900ms;
   /* Module data swaps: fast enough to read as a crossfade, not a reveal. */
   --fade-swap: 220ms;
@@ -136,18 +142,22 @@ body {
   position: relative;
   width: 100%;
   height: 100%;
-  padding: var(--pad);
+  padding: var(--pad-y) var(--pad-x);
   color: var(--fg);
   background: #000;
   font-family: var(--term);
   font-variant-numeric: tabular-nums lining-nums;
   display: grid;
   /* Hard three-row composition: top band, face zone, bottom band. The two
-     fixed rows put the face zone at exactly y=480..1250 inside the 52px pad
-     (52 + 428 = 480, 480 + 770 = 1250). The mounts are position:fixed when
-     they hold anything and display:none when they do not, so they never take
-     a row here. */
-  grid-template-rows: 428px 770px 1fr;
+     fixed rows put the face zone at exactly y=472..1472 inside the 16px pad
+     (16 + 456 = 472, 472 + 1000 = 1472). The top row is sized so the agenda
+     frame keeps the same interior height it had at the old 52px pad — the band
+     moved up, it did not get shorter. The face row is deliberately far taller
+     than the old 770px: the reflection reaches lower than the first cut
+     assumed, so the bottom band's clip line moved down with it. The mounts are
+     position:fixed when they hold anything and display:none when they do not,
+     so they never take a row here. */
+  grid-template-rows: 456px 1000px 1fr;
   /* Burn-in mitigation: app.js nudges this a few px every ~10 minutes. */
   transform: translate3d(0, 0, 0);
   transition: transform 6s ease-in-out, opacity 1600ms ease;
@@ -160,7 +170,7 @@ body {
   min-height: 0;
   display: grid;
   grid-template-rows: auto auto 1fr auto;
-  /* Keeps the last lit thing a hair clear of the y=480 boundary instead of
+  /* Keeps the last lit thing a hair clear of the y=472 boundary instead of
      landing exactly on it. */
   padding-bottom: 10px;
   overflow: hidden;
@@ -379,7 +389,7 @@ body.off #root {
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--fg-3);
-  padding-bottom: 20px;
+  padding-bottom: 24px;
 }
 
 .navi {
@@ -781,7 +791,7 @@ body.off #root {
    line-work glyph plus value, three columns, at agenda text size. Still
    outline-only, still nowhere near the brightness of the clock. */
 #astro-line:not(:empty) {
-  margin-top: 12px;
+  margin-top: 16px;
 }
 
 .astro-strip {
@@ -864,14 +874,18 @@ body.off #root {
 
 /* The only frame in the top band: two agenda columns, one window. It takes the
    slack row of .top-band, so its bottom edge lands just above the face zone
-   whatever the agenda holds. */
+   whatever the agenda holds.
+
+   The top margin is the gap between the astro readout and this frame's stroke.
+   At 10px the two read as one glued block; the sun/UV line is a separate
+   readout and needs to look like one. */
 .days {
   min-height: 0;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 40px;
-  margin-top: 10px;
-  padding: 22px 32px 18px 36px;
+  margin-top: 34px;
+  padding: 20px 32px 16px 36px;
 }
 
 /* Last line of defence: an unusually tall agenda clips inside its own window
@@ -1165,8 +1179,23 @@ body.off #root {
   opacity: 0.82;
 }
 
+/* Shallower than the shared .win padding, horizontals untouched. Every pixel
+   this frame gives up vertically is a pixel its top edge drops away from the
+   reflected face, and four chips plus a "+n more" line is all it ever holds.
+   The top inset still clears the tab, which hangs 14px inside the frame. */
+.tasks {
+  padding: 20px 32px 14px 36px;
+}
+
 .tasks .frame {
   opacity: 0.34;
+}
+
+/* The task list's own "+n more" runs tighter than the agenda's for the same
+   reason. */
+.tasks .more {
+  padding-top: 4px;
+  font-size: 14px;
 }
 
 /* Nanoleaf is a shallow chip/status strip, not a bright card. */
@@ -1241,27 +1270,30 @@ body.off #root {
   color: var(--fg-3);
 }
 
-/* Chip cards: rectangular tile, code-letter square on the left, dim lines. */
+/* Chip cards: rectangular tile, code-letter square on the left, dim lines.
+   Shallow tiles on purpose — the title keeps its 21px so it still reads from
+   five feet, and the height comes out of the padding instead. */
 .chips {
   list-style: none;
   display: grid;
-  gap: 10px;
+  gap: 7px;
 }
 
 .chip {
   position: relative;
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
+  grid-template-columns: 26px minmax(0, 1fr);
   gap: 14px;
   align-items: center;
-  padding: 8px 12px;
+  padding: 5px 12px;
   border: 1px solid var(--line-dim);
   border-left-color: var(--line);
 }
 
 .chip .code {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
+  line-height: 1;
   border: 1px solid var(--line);
   display: flex;
   align-items: center;
@@ -1273,7 +1305,7 @@ body.off #root {
 
 .chip .t {
   font-size: 21px;
-  line-height: 1.2;
+  line-height: 1.12;
   color: var(--fg-2);
 }
 
@@ -1321,8 +1353,10 @@ body.off #root {
 /* Single dim BN line below the quote: skewed '>> NET NEWS' tab then one
    headline at a time. No marquee — it cross-fades in place every 20s. Kept
    small and low-opacity so it never reads as a lamp. */
+/* Last line on the panel: it sits on the bottom edge of the bottom band, which
+   is itself 16px off the glass, so the headline runs along the very bottom. */
 .news {
-  margin-top: 24px;
+  margin-top: 18px;
   min-height: 30px;
 }
 
