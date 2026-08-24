@@ -387,6 +387,10 @@ import { createModeMachine } from './mode.js';
   const compactTime = (label) =>
     String(label ?? '').replace(/:00(am|pm)$/, '$1').replace(/([ap])m$/, '$1');
 
+  // Every 1:1 on this calendar is titled "Maanav <> X": on Maanav's own mirror
+  // the prefix carries nothing, so it goes and X gets the pixels. Display-only.
+  const compactTitle = (title) => String(title ?? '').replace(/^maanav\s*<>\s*/i, '');
+
   function agendaList(events, { cursor = false } = {}) {
     const list = el('ul', 'agenda');
     // BN selection cursor sits on the next upcoming timed event, if any.
@@ -401,7 +405,7 @@ import { createModeMachine } from './mode.js';
       li.dataset.eventId = event.id;
       li.dataset.eventStart = event.start;
       li.append(el('span', 't', compactTime(event.timeLabel)));
-      li.append(el('span', 'n', event.title));
+      li.append(el('span', 'n', compactTitle(event.title)));
       list.append(li);
     }
     return list;
