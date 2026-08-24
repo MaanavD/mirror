@@ -382,6 +382,11 @@ import { createModeMachine } from './mode.js';
     target.append(strip);
   }
 
+  // "9:00am" -> "9a", "9:30am" -> "9:30a": buys the title ~4 characters on the
+  // narrow rail. Display-only; the server keeps the full label for leave-by.
+  const compactTime = (label) =>
+    String(label ?? '').replace(/:00(am|pm)$/, '$1').replace(/([ap])m$/, '$1');
+
   function agendaList(events, { cursor = false } = {}) {
     const list = el('ul', 'agenda');
     // BN selection cursor sits on the next upcoming timed event, if any.
@@ -395,7 +400,7 @@ import { createModeMachine } from './mode.js';
       );
       li.dataset.eventId = event.id;
       li.dataset.eventStart = event.start;
-      li.append(el('span', 't', event.timeLabel));
+      li.append(el('span', 't', compactTime(event.timeLabel)));
       li.append(el('span', 'n', event.title));
       list.append(li);
     }

@@ -1014,14 +1014,15 @@ body.off #root {
   list-style: none;
 }
 
-/* The time column is cut to what "12:45pm" and "all day" actually need: at
-   rail width every pixel it keeps is a pixel of title that ellipses away. 84px
-   is exactly the widest label at the new time size, and the gutter came down to
-   8px for the same reason — what is left, ~162px, is the title. */
+/* The time column is cut to what the compacted labels actually need: at rail
+   width every pixel it keeps is a pixel of title that ellipses away. Times are
+   compacted on the glass ("12:45pm" -> "12:45p", "9:00am" -> "9a"), so 72px is
+   the widest label at the current time size, and the gutter stays at 8px —
+   what is left of the rail is the title. */
 .agenda li {
   position: relative;
   display: grid;
-  grid-template-columns: 84px minmax(0, 1fr);
+  grid-template-columns: 72px minmax(0, 1fr);
   gap: 8px;
   padding-bottom: 8px;
   font-size: 25px;
@@ -1054,10 +1055,10 @@ body.off #root {
 }
 
 .agenda li.allday .t {
-  font-size: 17px;
-  letter-spacing: 0.2em;
+  font-size: 15px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  padding-top: 4px;
+  padding-top: 5px;
 }
 
 .agenda li.past,
