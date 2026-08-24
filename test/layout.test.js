@@ -96,4 +96,13 @@ test('the rails clip above the bottom band, which keeps its own edge', () => {
   assert.ok(rows, '#root row template missing');
   const [railRow, openGlass] = [Number(rows[1]), Number(rows[2])];
   assert.equal(16 + railRow + openGlass, 1472, 'the bottom band moved off its edge');
+
+  // The rail row is only a clip line, and the right rail is the one column with
+  // no corridor above it (x 740..1040), so the row may be deepened to buy the
+  // agenda vertical room — that is where the larger type came from. What it may
+  // not do is reach the bottom band's lit content, which starts around y=1590.
+  assert.ok(
+    16 + railRow <= 1450,
+    `the rail row clips at y=${16 + railRow}, into the bottom band's air`,
+  );
 });

@@ -536,8 +536,11 @@ import { createModeMachine } from './mode.js';
     }
   }
 
-  // Sparse on purpose: the server caps at 8 visible, the glass shows fewer.
-  const TODOS_SHOWN = 4;
+  // Sparse on purpose: the server caps at 8 visible, the glass shows fewer. Down
+  // from 4 with the larger chip type — at 26px titles a fourth tile would push
+  // the frame (and Hermy, who sits on its top edge) up past the bottom band's
+  // own clip line at y=1472. The overflow is not lost, it joins "+n more".
+  const TODOS_SHOWN = 3;
 
   // Chip-code letter for an area, e.g. "Health / sleep" -> "H".
   const codeLetter = (area) => (String(area ?? '').match(/[a-z0-9]/i)?.[0] ?? '·').toUpperCase();
