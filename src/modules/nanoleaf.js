@@ -43,13 +43,18 @@ export function normalizeNanoleafState(raw, entityId) {
 }
 
 export function shapeNanoleaf(states, { entityIds = ENTITY_IDS } = {}) {
-  if (!Array.isArray(states) || states.length !== entityIds.length) {
-    throw new Error('Home Assistant returned an incomplete Nanoleaf state');
+  const byEntity = new Map((Array.isArray(states) ? states : []).map((state) => [state?.entity_id, state]));
+  const lights = [];
+  const unavailable = [];
+  for (const entityId of entityIds) {
+    try {
+      lights.push(normalizeNanoleafState(byEntity.get(entityId), entityId));
+    } catch {
+      // An unknown lamp is not off, and must not hide its healthy neighbour.
+      unavailable.push(entityId);
+    }
   }
-
-  const byEntity = new Map(states.map((state) => [state?.entity_id, state]));
-  const lights = entityIds.map((entityId) => normalizeNanoleafState(byEntity.get(entityId), entityId));
-  return { lights };
+  return lights.length ? { lights, ...(unavailable.length ? { unavailable } : {}) } : null;
 }
 
 async function readToken(tokenFile) {
@@ -71,7 +76,7 @@ export const nanoleafModule = {
       if (!token) return null;
 
       const entityIds = config.nanoleaf?.entities ?? ENTITY_IDS;
-      const states = await Promise.all(
+      const results = await Promise.allSettled(
         entityIds.map((entityId) =>
           fetchJson(endpoint(config.ha.url, entityId), {
             headers: { authorization: `Bearer ${token}` },
@@ -79,7 +84,11 @@ export const nanoleafModule = {
           }),
         ),
       );
-      return shapeNanoleaf(states, { entityIds });
+      const states = results.filter((result) => result.status === 'fulfilled').map((result) => result.value);
+      const data = shapeNanoleaf(states, { entityIds });
+      const unavailable = data?.unavailable ?? (data ? [] : entityIds);
+      if (unavailable.length) log?.warn?.(`Nanoleaf unavailable: ${unavailable.join(', ')}`);
+      return data;
     } catch (err) {
       // This is deliberately invisible to the viewer: a missing HA network or
       // token makes the module disappear instead of becoming an alarm card.

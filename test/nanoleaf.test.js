@@ -54,7 +54,7 @@ test('off lights retain a remembered color but remain off', () => {
   assert.equal(result.brightness, 0);
 });
 
-test('shape requires both configured entities and preserves configured order', () => {
+test('shape preserves configured order and skips unavailable or missing entities', () => {
   const result = shapeNanoleaf([
     state('light.shapes_dedf', 'off'),
     state('light.shapes_a418', 'on', { rgb_color: [1, 2, 3] }),
@@ -62,7 +62,7 @@ test('shape requires both configured entities and preserves configured order', (
   assert.deepEqual(result.lights.map((light) => light.entityId), ENTITY_IDS);
   assert.equal(result.lights[0].on, true);
   assert.equal(result.lights[1].on, false);
-  assert.throws(() => shapeNanoleaf([state(ENTITY_IDS[0], 'on')]), /incomplete/);
+  assert.equal(shapeNanoleaf([state(ENTITY_IDS[0], 'on')]).lights.length, 1);
   assert.throws(() => normalizeNanoleafState(state(ENTITY_IDS[0], 'unavailable'), ENTITY_IDS[0]), /invalid/);
 });
 
@@ -104,4 +104,32 @@ test('HA outage returns null so the frontend hides the module', async () => {
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+
+test('one unavailable light cannot hide the other working light', () => {
+  const result = shapeNanoleaf([
+    state(ENTITY_IDS[0], 'unavailable'),
+    state(ENTITY_IDS[1], 'on', { friendly_name: 'Bedstagons', brightness: 180 }),
+  ]);
+  assert.equal(result.lights.length, 1);
+  assert.equal(result.lights[0].name, 'Bedstagons');
+  assert.equal(result.lights[0].on, true);
+  assert.deepEqual(result.unavailable, [ENTITY_IDS[0]]);
+  assert.equal(shapeNanoleaf(ENTITY_IDS.map(id => state(id, 'unavailable'))), null);
+});
+
+test('one failed HA request cannot hide a successful light response', async () => {
+  const file = await tokenFile();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async url => {
+    const id = decodeURIComponent(String(url).split('/').pop());
+    if (id === ENTITY_IDS[0]) throw new Error('connection refused');
+    return new Response(JSON.stringify(state(id, 'on', {brightness: 180})), {status: 200});
+  };
+  try {
+    const result = await nanoleafModule.fetch({config: config(file), log: {warn() {}}});
+    assert.equal(result.lights[0].entityId, ENTITY_IDS[1]);
+    assert.deepEqual(result.unavailable, [ENTITY_IDS[0]]);
+  } finally { globalThis.fetch = originalFetch; }
 });
