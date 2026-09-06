@@ -38,7 +38,7 @@ ExecStart=/usr/bin/chromium-browser \
   --password-store=basic \
   --ozone-platform=wayland \
   --user-data-dir=%h/.config/mirror-kiosk \
-  http://MIRROR_HOST:8390
+  http://MIRROR_HOST:8390/dashboard?view=mirror
 Restart=always
 RestartSec=5
 

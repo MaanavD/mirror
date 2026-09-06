@@ -1,5 +1,5 @@
 import { fetchJson } from '../http.js';
-import { localDateKey, zonedParts } from '../time.js';
+import { localDateKey, zonedParts, parseFloatingLocal } from '../time.js';
 
 export const OPEN_METEO_DAILY = 'https://api.open-meteo.com/v1/forecast';
 
@@ -56,6 +56,8 @@ export function buildUrl({ lat, lon, timezone }) {
     latitude: String(lat),
     longitude: String(lon),
     daily: 'sunrise,sunset,uv_index_max,daylight_duration',
+    hourly: 'uv_index',
+    forecast_days: '2',
     timezone,
   });
   return `${OPEN_METEO_DAILY}?${params}`;
@@ -82,6 +84,14 @@ export function shapeAstro(raw, { now = new Date(), timeZone = 'UTC' } = {}) {
     svgMoon: moonGlyph(phase),
     sunrise,
     sunset,
+    sunriseAt: sunriseRaw ? parseFloatingLocal(sunriseRaw, timeZone)?.toISOString() ?? null : null,
+    sunsetAt: sunsetRaw ? parseFloatingLocal(sunsetRaw, timeZone)?.toISOString() ?? null : null,
+    uvHours: (raw?.hourly?.time ?? []).flatMap((time, i) => {
+      const uv = raw.hourly.uv_index?.[i];
+      const at = parseFloatingLocal(time, timeZone);
+      return at && typeof uv === 'number' && Number.isFinite(uv) && uv >= 0
+        ? [{ at: at.toISOString(), uv }] : [];
+    }),
     uv: uv != null && Number.isFinite(Number(uv)) ? Math.round(Number(uv)) : null,
     daylight: daylight != null && Number.isFinite(Number(daylight)) ? Number(daylight) : null,
   };

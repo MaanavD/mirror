@@ -1,0 +1,19 @@
+[Unit]
+Description=Smart mirror presence and ambient backlight controller
+Requires=pi-agent.service
+After=pi-agent.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/default/pi-agent
+EnvironmentFile=-/etc/mirror-controller.env
+ExecStart=/usr/bin/python3 /opt/pi-agent/backlight_controller.py
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mirror-backlight-controller
+
+[Install]
+WantedBy=multi-user.target

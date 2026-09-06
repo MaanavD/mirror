@@ -41,6 +41,7 @@ export function normalizeEvent(item, timeZone) {
     timeLabel: allDay ? 'all day' : localTimeLabel(start, timeZone),
     calendarId: item.calendarId ?? null,
     location: String(item.location ?? '').trim() || null,
+    busy: item.transparency !== 'transparent',
   };
 }
 
@@ -48,7 +49,7 @@ function inWindow(event, from, to) {
   // All-day (and multi-day) events count for every day they touch; timed events
   // belong to the day they start in.
   if (event.allDay) return event.startMs < to && event.endMs > from;
-  return event.startMs >= from && event.startMs < to;
+  return event.startMs < to && (event.endMs > from || event.startMs >= from);
 }
 
 const byStart = (a, b) =>
@@ -76,8 +77,11 @@ export function shapeAgenda(items, { now = new Date(), timeZone = 'UTC', calenda
 
   const pick = (from, to, cap) => {
     const all = events.filter((e) => inWindow(e, from, to)).sort(byStart);
+    // Old morning events must not consume every slot before an afternoon event.
+    const relevant = all.filter(e => e.allDay || e.endMs > nowMs || e.startMs >= nowMs);
+    const chosen = [...relevant, ...all.filter(e => !relevant.includes(e))].slice(0,cap).sort(byStart);
     return {
-      events: all.slice(0, cap).map((e) => ({
+      events: chosen.map((e) => ({
         id: e.id,
         title: e.title,
         allDay: e.allDay,
@@ -103,6 +107,12 @@ export function shapeAgenda(items, { now = new Date(), timeZone = 'UTC', calenda
     todayMore: today.more,
     tomorrow: tomorrow.events,
     tomorrowMore: tomorrow.more,
+    // Additive uncapped presentation horizon for the new brief. Legacy slots
+    // remain capped and retain their existing shape.
+    events: events.filter(e => inWindow(e,startOfLocalDay(now,timeZone,-1).getTime(),t2)).sort(byStart).map(e => ({
+      id:e.id, title:e.title, allDay:e.allDay, start:e.start, end:e.end,
+      calendarId:e.calendarId, location:e.location, busy:e.busy,
+    })),
   };
 }
 
@@ -127,12 +137,15 @@ async function fetchCalendar(id, { accessToken, timeMin, timeMax, timeoutMs }) {
     orderBy: 'startTime',
     maxResults: '50',
   });
-  const url = `${CALENDAR_API}/${encodeURIComponent(id)}/events?${params}`;
-  const payload = await fetchJson(url, {
-    headers: { authorization: `Bearer ${accessToken}` },
-    timeoutMs,
-  });
-  return (payload.items ?? []).map((item) => ({ ...item, calendarId: id }));
+  const items=[];
+  for(let page=0;page<10;page++){
+    const url = `${CALENDAR_API}/${encodeURIComponent(id)}/events?${params}`;
+    const payload = await fetchJson(url, {headers:{authorization:`Bearer ${accessToken}`},timeoutMs});
+    items.push(...(payload.items??[]).map(item=>({...item,calendarId:id})));
+    if(!payload.nextPageToken)return items;
+    params.set('pageToken',payload.nextPageToken);
+  }
+  throw new Error('calendar pagination limit reached');
 }
 
 export function mockAgenda({ now = new Date(), timeZone = 'UTC' } = {}) {
@@ -170,7 +183,7 @@ export const calendarModule = {
     }
 
     const accessToken = await authFor(config).accessToken();
-    const timeMin = startOfLocalDay(now, config.timezone).toISOString();
+    const timeMin = startOfLocalDay(now, config.timezone, -1).toISOString();
     const timeMax = startOfLocalDay(now, config.timezone, 2).toISOString();
 
     const results = await Promise.allSettled(
@@ -191,7 +204,7 @@ export const calendarModule = {
     }
     if (ok === 0) throw new Error(`all ${ids.length} calendar(s) failed`);
 
-    return shapeAgenda(items, { now, timeZone: config.timezone, calendars: ok });
+    return {...shapeAgenda(items, { now, timeZone: config.timezone, calendars: ok }),coverageComplete:ok===ids.length};
   },
 
   mock({ config, now }) {

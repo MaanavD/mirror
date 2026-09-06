@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark"><title>Today · Hermy</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 4h16v16H4zM8 12h8' fill='none' stroke='%239ce1db' stroke-width='2'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/dashboard.css?v=9">
+</head>
+<body>
+  <div class="example-bar" id="example-bar" hidden>Example scenario · sample data</div>
+  <main id="dashboard">
+    <section class="masthead" aria-label="Time and date">
+      <p class="eyebrow" id="greeting">Good afternoon, Maanav.</p>
+      <div class="time"><span id="time">—:—</span><span id="period"></span></div>
+      <p class="date" id="date"></p>
+      <div class="day-marker"><span></span><p id="day-note">A little room to think.</p></div>
+    </section>
+
+    <section class="day-timeline" aria-label="Your waking day"><div class="section-heading"><h2>Your day</h2><span id="timeline-source"></span></div><div id="timeline-body"></div></section>
+
+
+
+    <div class="right-rail">
+      <section class="weather" aria-label="Weather">
+      <div id="weather-body"><p class="empty">Waiting for the weather update.</p></div>
+    </section>
+      <section class="attention" aria-labelledby="attention-heading">
+      <div class="section-heading"><h2 id="attention-heading">Right now</h2><span id="attention-count"></span></div>
+      <div id="attention-body" aria-live="polite"></div>
+      <button class="text-button" id="undo-snooze" hidden>Show snoozed notices</button>
+    </section>
+      <section class="tasks" aria-labelledby="tasks-heading">
+      <div class="section-heading"><h2 id="tasks-heading">Worth your time</h2><span id="tasks-count"></span></div>
+      <div id="tasks-body"></div><button class="text-button" id="more-tasks" hidden>Show more tasks</button>
+      <p class="source-note" id="tasks-note"></p>
+    </section>
+      <section class="agenda" aria-labelledby="agenda-heading">
+      <div class="section-heading"><h2 id="agenda-heading">Your day</h2><div class="day-tabs" role="group" aria-label="Agenda day"><button id="today-tab" aria-pressed="true">Today</button><button id="tomorrow-tab" aria-pressed="false">Tomorrow</button></div></div>
+      <div id="agenda-body"></div><p class="source-note" id="calendar-note"></p>
+    </section>
+    </div>
+    <section class="horizon" aria-label="Coming up"><div class="section-heading"><h2>On the horizon</h2></div><div id="horizon-body"></div></section>
+    <section class="agent-station" aria-label="Agent activity. Stay a moment to see task details." tabindex="0" hidden><div class="agent-status"><span id="agent-count"></span></div><div id="agents-body"></div></section>
+    <section class="weekly-progress" aria-label="Task progress"><div class="section-heading"><h2>This week</h2></div><div id="progress-body"></div></section>
+    <section class="now-playing" aria-label="Now playing" hidden><div id="music-body"></div></section>
+    <footer class="footer">
+      <div class="hermy-note"><div class="avatar" aria-hidden="true"><span class="hermy-sprite"></span><span class="signal-bars"><i></i><i></i><i></i><i></i></span></div><div><p id="hermy-note">One thing at a time.</p><p id="quote-author"></p></div></div>
+      <div class="footer-controls"><button id="details-toggle" class="text-button" aria-expanded="false" aria-controls="details-panel">Around you <span aria-hidden="true">＋</span></button><span class="source-note">Quiet by default.</span></div>
+    </footer>
+    <section id="details-panel" class="details" aria-label="More context" hidden></section>
+  </main>
+  <div class="toast" id="toast" role="status" hidden></div>
+  <script type="module" src="/dashboard.js?v=9"></script>
+</body></html>

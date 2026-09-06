@@ -1,14 +1,4 @@
-/**
- * Notion todos — STUB, by necessity.
- *
- * The database (NOTION_DATABASE_ID) has not been shared with the integration
- * yet, so this module cannot read anything real. See SETUP_TODO.md.
- *
- * Everything except the live credentials is already here: schema introspection,
- * property detection, the incomplete-only query, grouping by area and the
- * 8-visible cap. When the DB is shared, set NOTION_TOKEN and the real path
- * takes over with no code change — `notReady()` results simply stop happening.
- */
+/** Personal Notion tasks, with source status for automatic focus and progress. */
 import { fetchJson } from '../http.js';
 
 export const NOTION_API = 'https://api.notion.com/v1';
@@ -75,6 +65,7 @@ export function pickProperties(schema) {
 
   return {
     title,
+    due: entries.find(([name,p]) => p?.type === 'date' && /due|deadline|remind/i.test(name))?.[0] ?? null,
     area: area ? area[0] : null,
     areaType: area ? props[area[0]].type : null,
     done,
@@ -120,9 +111,21 @@ export function toTodos(pages, props) {
     if (isDone(page, props)) continue;
     const title = plainText(page?.properties?.[props.title]?.title);
     if (!title) continue;
-    out.push({ id: page.id, title, area: areaOf(page, props) });
+    const due = props.due ? page?.properties?.[props.due]?.date?.start : null;
+    out.push({ id: page.id, title, area: areaOf(page, props), ...(due ? { due } : {}) });
   }
   return out;
+}
+
+export function taskRecords(pages, props) {
+  return (pages ?? []).filter(p => !p.archived && !p.in_trash).map(page => {
+    const title = plainText(page.properties?.[props.title]?.title);
+    const status = props.done ? page.properties?.[props.done.name]?.[props.done.type]?.name : null;
+    const due = props.due ? page.properties?.[props.due]?.date?.start : null;
+    return {id:page.id, title, area:areaOf(page,props), source:'personal',
+      status:status ?? (isDone(page,props)?'Done':'Not started'), done:isDone(page,props),
+      due:due ?? null, url:page.url ?? null, updatedAt:page.last_edited_time ?? null};
+  }).filter(t=>t.title);
 }
 
 /**
@@ -215,15 +218,19 @@ export const notionModule = {
       throw err;
     }
 
-    const filter = buildFilter(schema.props);
-    const payload = await fetchJson(`${NOTION_API}/databases/${config.notion.databaseId}/query`, {
-      method: 'POST',
-      headers: headers(config),
-      body: JSON.stringify({ page_size: 100, ...(filter ? { filter } : {}) }),
-      timeoutMs: config.fetchTimeoutMs,
-    });
-
-    const todos = toTodos(payload?.results, schema.props);
+    const pages=[];
+    let cursor=null, hasMore=false;
+    do {
+      const payload = await fetchJson(`${NOTION_API}/databases/${config.notion.databaseId}/query`, {
+        method:'POST', headers:headers(config),
+        body:JSON.stringify({page_size:100,...(cursor?{start_cursor:cursor}:{})}),
+        timeoutMs:config.fetchTimeoutMs,
+      });
+      pages.push(...(payload.results??[]));
+      hasMore=Boolean(payload.has_more); cursor=payload.next_cursor;
+    } while(hasMore && cursor && pages.length<1000);
+    const records=taskRecords(pages,schema.props);
+    const todos=records.filter(t=>!t.done);
     const grouped = groupTodos(todos);
     const vir = toViruses(todos);
     return {
@@ -231,6 +238,10 @@ export const notionModule = {
       stub: false,
       database: schema.title,
       ...grouped,
+      items: todos,
+      completed: records.filter(t=>t.done),
+      doneTotal: records.filter(t=>t.done).length,
+      truncated: hasMore,
       viruses: vir.viruses,
       virusTotal: vir.total,
       virusMore: vir.more,

@@ -14,6 +14,9 @@ import quoteModule from './quote.js';
 import spotifyModule from './spotify.js';
 import weatherModule from './weather.js';
 import wellnessModule from './wellness.js';
+import workboardModule from './workboard.js';
+import agentsModule from './agents.js';
+import progressModule from './progress.js';
 
 /**
  * Registration order = order of the keys in /api/state.modules.
@@ -33,6 +36,9 @@ export const modules = [
   wellnessModule,
   quoteModule,
   notionModule,
+  workboardModule,
+  agentsModule,
+  progressModule,
   nanoleafModule,
   spotifyModule,
   newsModule,

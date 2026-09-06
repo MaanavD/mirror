@@ -217,7 +217,9 @@ function fixedPlaceFallback(config, now) {
 function resultFor(event, driveMin, now, config) {
   const startMs = eventStartMs(event);
   const leaveByMs = startMs - (driveMin + BUFFER_MIN) * 60_000;
-  if (leaveByMs <= now.getTime() || driveMin < MIN_DRIVE_MIN) return null;
+  // Keep a due departure visible briefly, rather than removing the notice at
+  // the exact moment the viewer needs to leave.
+  if (leaveByMs <= now.getTime() - 10 * 60_000 || startMs <= now.getTime() || driveMin < MIN_DRIVE_MIN) return null;
   const leaveBy = new Date(leaveByMs);
   return {
     eventTitle: event.title,

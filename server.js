@@ -6,10 +6,12 @@ import { DisplayController, requireDisplayToken } from './src/display.js';
 import { createLogger } from './src/logger.js';
 import modules from './src/modules/index.js';
 import { createPresenceHandler } from './src/presence.js';
+import { createSensorHandler } from './src/sensors.js';
 import { Scheduler } from './src/scheduler.js';
 import { createEventStream } from './src/sse.js';
 import { Store } from './src/store.js';
 import { Voice } from './src/voice.js';
+import { mountLiveDashboard } from './src/frontend-release.js';
 
 const log = createLogger('mirror');
 
@@ -19,6 +21,8 @@ cache.loadSync();
 const store = new Store({ config, cache, modules, log: createLogger('store') });
 const scheduler = new Scheduler({ store, config, log: createLogger('scheduler') });
 const events = createEventStream({ store, log: createLogger('sse') });
+const sensors = { present: null, lux: null, updatedAt: null };
+const sensorHandler = createSensorHandler({ events, state: sensors, log: createLogger('sensors') });
 const display = new DisplayController({ config, store, log: createLogger('display') });
 const voice = new Voice({ config, log: createLogger('voice') });
 
@@ -36,6 +40,21 @@ app.get('/api/state', (_req, res) => {
 });
 
 app.get('/api/events', events.handler);
+
+// Only the room-light state is needed by the Pi brightness controller.
+app.get('/api/lighting', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json(store.snapshot().modules.nanoleaf ?? { data: null, fetchedAt: null, stale: true });
+});
+
+// Read-only telemetry from the Pi sensor controller. The dashboard uses this
+// separate contract so the existing state shape and behavior stay unchanged.
+app.get('/api/sensors', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json(sensors);
+});
+
+app.post('/api/sensors', requireDisplayToken(config), sensorHandler);
 
 app.post('/api/display/on', requireDisplayToken(config), async (_req, res) => {
   res.json(await display.set(true, { source: 'api' }));
@@ -93,6 +112,8 @@ app.get('/healthz', (_req, res) => {
 // Frontend
 // ---------------------------------------------------------------------------
 
+mountLiveDashboard(app, config.publicDir);
+
 app.get('/preview', (_req, res) => {
   res.sendFile(path.join(config.publicDir, 'preview.html'));
 });
@@ -101,9 +122,13 @@ app.use(
   express.static(config.publicDir, {
     extensions: ['html'],
     setHeaders(res, filePath) {
-      // Kiosk reloads must pick up new markup; hashless assets can sit in cache
-      // briefly but never long enough to matter across a deploy + restart.
-      res.set('Cache-Control', filePath.endsWith('.html') ? 'no-store' : 'public, max-age=300');
+      // Hot-swapped dashboard files must reflect deploys immediately. Other
+      // static assets keep a short cache because they are not hot-swapped.
+      const noStore = filePath.endsWith('.html')
+        || ['app.js', 'styles.css', 'hermy_sprites.png', 'dashboard.js', 'dashboard.css',
+          'attention.js', 'day-model.js', 'dashboard-examples.js', 'live-updates.js',
+          'hermy-sheet-v4.png'].includes(path.basename(filePath));
+      res.set('Cache-Control', noStore ? 'no-store' : 'public, max-age=300');
     },
   }),
 );
