@@ -1,5 +1,15 @@
 import {fresh, instant, dateKey, timeLabel, allEvents, MINUTE} from './attention.js';
 
+export function lightingFor(entry, now=Date.now()) {
+  const lights=fresh(entry,'nanoleaf',now)?entry.data?.lights:[];
+  return [['light.shapes_a418','Flower'],['light.shapes_dedf','Bedstagons']].map(([id,name])=>{
+    const light=lights?.find(light=>light.entityId===id);
+    const status=light?.on===true?'on':light?.on===false?'off':'unknown';
+    const percent=status==='on'&&Number.isFinite(light.brightness)?Math.round(Math.max(0,Math.min(255,light.brightness))/255*100):null;
+    return {id,name:light?.name??name,status,percent};
+  });
+}
+
 export function localInstant(day, hour, zone) {
   const [y,m,d]=day.split('-').map(Number);
   const target=Date.UTC(y,m-1,d,hour);

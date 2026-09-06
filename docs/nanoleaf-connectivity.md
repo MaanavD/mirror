@@ -18,3 +18,9 @@ Regression tests reproduced both the unavailable-state and failed-request cases 
 ## Next step
 
 Restore the Pi network connection, then verify both HA states and /api/lighting. The Nanoleaf hardware, IPs and saved credentials passed direct local checks. A reliable always-on LAN gateway would remove the mirror Pi Wi-Fi connection as a dependency for remote HA access, but no routing changes were made during this diagnosis.
+
+## Visibility correction
+
+The former lighting presentation existed only inside the collapsed Around you panel. Mirror CSS hides that entire panel, so network recovery alone could never make lighting status visible on the physical mirror. A compact row now shows Flower and Bedstagons beneath the date in both layouts, including explicit No signal states when data is missing or stale. On lamps reveal their brightness after eight seconds of presence, or on hover/keyboard focus. Unknown and off lamps never show remembered brightness as current.
+
+Verified the deployed mirror layout visually and the web layout through its rendered DOM. All 301 Node tests pass. This verifies the served dashboard; the physical Pi remains unreachable and its loaded version cannot be confirmed.

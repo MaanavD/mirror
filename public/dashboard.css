@@ -44,6 +44,16 @@ a:focus-visible, button:focus-visible, .agent-station:focus-visible { outline: 1
 #time { font: 128px/1 var(--terminal); letter-spacing: -.025em; color: #d8f4f6; }
 #period { font: 20px var(--terminal); color: var(--muted); }
 .date { font: 28px/1.2 var(--terminal); color: var(--secondary); }
+.room-lights { display: flex; flex-wrap: wrap; gap: 8px 24px; margin-top: 12px; font: 20px/1.2 var(--terminal); color: var(--secondary); }
+.room-light { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.light-dot { width: 7px; height: 7px; border: 1px solid var(--muted); flex-shrink: 0; }
+.room-light.on .light-dot { background: var(--accent); border-color: var(--accent); }
+.room-light.unknown .light-dot { border-style: dotted; }
+.light-state { color: var(--muted); }
+.room-light.on .light-state { color: var(--accent); }
+.light-level { max-width: 0; opacity: 0; overflow: hidden; margin-left: -8px; transition: max-width .25s ease, opacity .25s ease, margin .25s ease; }
+.room-lights:is(:hover,:focus-visible,.expanded) .light-level { max-width: 4ch; opacity: 1; margin-left: 0; }
+.room-lights:focus-visible { outline: 1px solid var(--accent); outline-offset: 6px; }
 .day-marker { display: none; }
 .section-heading { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s2); margin-bottom: var(--s2); }
 .section-heading h2 { color: #b7d8e5; font: 14px/1.6 var(--pixel); }

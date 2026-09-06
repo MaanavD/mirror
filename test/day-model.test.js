@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {localInstant,wakingWindow,timelineFor,prioritiesFor,comfortFor,briefFor,focusTasks,showTimeline,isWorkoutEvent} from '../public/day-model.js';
+import {lightingFor,localInstant,wakingWindow,timelineFor,prioritiesFor,comfortFor,briefFor,focusTasks,showTimeline,isWorkoutEvent} from '../public/day-model.js';
 import {taskRecords,pickProperties} from '../src/modules/notion.js';
 import {shapeAgenda} from '../src/modules/calendar.js';
 const zone='America/Los_Angeles',now=Date.parse('2026-09-06T18:00:00Z');
@@ -82,4 +82,16 @@ test('weekend visibility uses local dates and fresh events only',()=>{
 test('workout classifier does not confuse ordinary work with exercise',()=>{
  for(const title of ['Workout: Recovery Mobility','lift — pull','Morning run','Yoga class'])assert.equal(isWorkoutEvent({title}),true,title);
  for(const title of ['Run through the demo','Product Planning','Working session'])assert.equal(isWorkoutEvent({title}),false,title);
+});
+
+
+test('lighting row always includes both lamps and distinguishes off from unavailable',()=>{
+ const data={lights:[{entityId:'light.shapes_dedf',name:'Bedstagons',on:true,brightness:128}]};
+ const lights=lightingFor(entry(data),now);
+ assert.deepEqual(lights.map(l=>[l.name,l.status,l.percent]),[['Flower','unknown',null],['Bedstagons','on',50]]);
+ assert.deepEqual(lightingFor(null,now).map(l=>l.status),['unknown','unknown']);
+ assert.deepEqual(lightingFor({...entry(data),stale:true},now).map(l=>l.status),['unknown','unknown']);
+ assert.deepEqual(lightingFor(entry(data),now+61000).map(l=>l.status),['unknown','unknown']);
+ const off=lightingFor(entry({lights:[{entityId:'light.shapes_dedf',on:false,brightness:128}]}),now)[1];
+ assert.equal(off.status,'off');assert.equal(off.percent,null);
 });

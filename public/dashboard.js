@@ -1,5 +1,5 @@
 import { fresh, ageLabel, dateKey, timeLabel, instant, agendaFor, tasksFor, horizonFor, buildAttention, sunlightFor, MINUTE } from './attention.js?v=9';
-import {localInstant, timelineFor, showTimeline, focusTasks, comfortFor, briefFor} from './day-model.js?v=9';
+import {lightingFor, localInstant, timelineFor, showTimeline, focusTasks, comfortFor, briefFor} from './day-model.js?v=9';
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -177,6 +177,18 @@ function renderDetails(m,now) {
     return blocks;
   });
 }
+function renderLighting(m,now) {
+  const lights=lightingFor(m.nanoleaf,now);
+  const lingerSince=example?viewStartedAt:presenceSince;
+  $('room-lights').classList.toggle('expanded',lingerSince!=null&&Date.now()-lingerSince>=8000);
+  replace('room-lights',lights,()=>lights.map(light=>{
+    const row=el('span',`room-light ${light.status}`);
+    const dot=el('span','light-dot');dot.setAttribute('aria-hidden','true');
+    row.append(dot,el('span','light-name',light.name),el('span','light-state',light.status==='unknown'?'No signal':light.status==='on'?'On':'Off'));
+    if(light.percent!=null)row.append(el('span','light-level',`${light.percent}%`));
+    return row;
+  }));
+}
 function renderTimeline(now) {
   document.querySelector('.day-timeline').hidden=!showTimeline(state,now);
   if(!showTimeline(state,now))return;
@@ -263,6 +275,7 @@ function renderMusic(m,now) {
 function render() {
   const now=example&&state?.exampleNow?state.exampleNow:Date.now(),m=state?.modules??{},model=buildAttention({...state,modules:{...m,leaveby:null}},{now,snoozed:preferences.snoozed});
   clock(now,model.timeZone);
+  renderLighting(m,now);
   document.body.classList.toggle('soft-off',mirror&&!preview&&!example&&state?.display?.on===false);
   $('day-note').textContent=model.current?'A little focus, right here.':model.next?`Next on your calendar at ${timeLabel(instant(model.next.start),model.timeZone)}.`:'A little room to think.';
   renderTimeline(now);renderAgents(m,now);renderProgress(m,now);renderMusic(m,now);renderWeather(m,now,model.timeZone);renderAttention(model,now);renderAgenda(m,model,now);renderTasks(m,now);renderHorizon(m,now);renderDetails(m,now);
