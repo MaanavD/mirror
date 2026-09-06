@@ -12,6 +12,7 @@ import { createEventStream } from './src/sse.js';
 import { Store } from './src/store.js';
 import { Voice } from './src/voice.js';
 import { mountLiveDashboard } from './src/frontend-release.js';
+import { dashboardState } from './src/dashboard-state.js';
 
 const log = createLogger('mirror');
 
@@ -20,7 +21,8 @@ cache.loadSync();
 
 const store = new Store({ config, cache, modules, log: createLogger('store') });
 const scheduler = new Scheduler({ store, config, log: createLogger('scheduler') });
-const events = createEventStream({ store, log: createLogger('sse') });
+const events = createEventStream({ store, log: createLogger('sse'),
+  project: (state, req) => req.query.view === 'dashboard' ? dashboardState(state) : state });
 const sensors = { present: null, lux: null, updatedAt: null };
 const sensorHandler = createSensorHandler({ events, state: sensors, log: createLogger('sensors') });
 const display = new DisplayController({ config, store, log: createLogger('display') });
@@ -34,9 +36,10 @@ app.use(express.json({ limit: '16kb' }));
 // API
 // ---------------------------------------------------------------------------
 
-app.get('/api/state', (_req, res) => {
+app.get('/api/state', (req, res) => {
   res.set('Cache-Control', 'no-store');
-  res.json(store.snapshot());
+  const state = store.snapshot();
+  res.json(req.query.view === 'dashboard' ? dashboardState(state) : state);
 });
 
 app.get('/api/events', events.handler);

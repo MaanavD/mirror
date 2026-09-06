@@ -1,9 +1,36 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import { createEventStream } from '../src/sse.js';
 
 const fakeStore = { snapshot: () => ({ ok: true }), subscribe: () => () => {} };
 const silentLog = { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };
+
+test('a slow kiosk skips obsolete snapshots and resumes at the newest state', () => {
+  let publish;
+  const store = { snapshot: () => ({ revision: 0 }), subscribe: fn => { publish = fn; return () => {}; } };
+  const events = createEventStream({ store, log: silentLog });
+  const frames = [];
+  const req = new EventEmitter(), res = new EventEmitter();
+  res.writeHead = () => {};
+  res.end = () => req.emit('close');
+  res.write = chunk => { frames.push(chunk); return !chunk.startsWith('event: state'); };
+  events.handler(req, res);
+  for (let revision = 1; revision <= 100; revision++) publish({ revision });
+  assert.equal(frames.filter(f => f.startsWith('event: state')).length, 1);
+  events.broadcast('sensors', { present: false });
+  events.broadcast('sensors', { present: true });
+  res.write = chunk => { frames.push(chunk); return true; };
+  res.emit('drain');
+  const states = frames.filter(f => f.startsWith('event: state'));
+  assert.equal(states.length, 2);
+  assert.match(states[1], /"revision":100/);
+  const sensors = frames.filter(f => f.startsWith('event: sensors'));
+  assert.equal(sensors.length, 1);
+  assert.match(sensors[0], /"present":true/);
+  events.closeAll();
+  assert.equal(events.size, 0);
+});
 
 test('broadcast with no clients is a no-op', () => {
   const events = createEventStream({ store: fakeStore, log: silentLog });

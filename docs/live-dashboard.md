@@ -18,3 +18,11 @@ The deployed Pi uses `systemd/smart-mirror-kiosk.service` (Debian 13, Weston). I
 September 6 cutover backup: Hermes `data/ux-backups/20260906-live-default/`; Pi `/etc/systemd/system/smart-mirror-kiosk.service.before-live-20260906`.
 
 Validation: Node suite includes real HTTP route/hash tests and client release-change/outage tests. The Python controller tests cover presence fades, daylight and room-light behavior. No hardware light sensor repair is included in this release; brightness continues to use the existing fallback.
+
+## Slow Wi-Fi recovery
+
+The live dashboard uses `/api/state?view=dashboard` and `/api/events?view=dashboard`. These preserve displayed priorities, notices, agents, and computed progress while omitting duplicated task histories and completed task rows needed only by server-side accounting. The original full state contract remains available to other consumers.
+
+SSE respects socket backpressure: while a write is blocked, only the newest pending snapshot is retained. This prevents a slow kiosk from accumulating obsolete snapshots. Named events coalesce to their latest value while blocked. Polling runs every 15 seconds with one request in flight, within the agent feed's 30-second freshness window. The agent strip displays "Reconnecting to Hermes" when the feed is stale rather than silently disappearing.
+
+During the September 6 investigation, the Pi's Wi-Fi showed 40% packet loss to its local router and hundreds of milliseconds of latency; it was already on 5 GHz with power saving off. Reconnecting the same NetworkManager profile improved one short loss test but latency remained high. These software fixes reduce bandwidth and backlog; they do not establish that the radio/network problem is permanently repaired.

@@ -203,16 +203,17 @@ function renderTimeline(now) {
 }
 function renderAgents(m,now) {
   const data=fresh(m.agents,'agents',now)?m.agents.data:null;
+  const unavailable=Boolean(m.agents&&(!fresh(m.agents,'agents',now)||data?.connected===false));
   const items=(data?.items??[]).filter(a=>(a.live===true && (example||Number.isFinite(a.lastActivityAt)&&now/1000-a.lastActivityAt<=180) && ['running','working','thinking','tool'].includes(a.status))||a.status==='waiting');
   const lingerSince=example?viewStartedAt:presenceSince;
   const expanded=agentHover||agentFocus||(lingerSince!=null&&Date.now()-lingerSince>=8000);
   const page=expanded?Math.floor((Date.now()-(lingerSince??viewStartedAt))/18000)%Math.max(1,Math.ceil(items.length/6)):0;
-  document.querySelector('.agent-station').hidden=!items.length;
+  document.querySelector('.agent-station').hidden=!items.length&&!unavailable;
   document.body.classList.toggle('agents-expanded',expanded);
   const liveCount=items.filter(a=>a.live).length;
-  $('agent-count').textContent=liveCount?`${liveCount} LIVE`:items.length?'WAITING':'';
-  replace('agents-body',[items,data?.connected,page],()=>{
-    if(!data||data.connected===false)return [el('p','agent-empty','Agent activity unavailable.')];
+  $('agent-count').textContent=unavailable?'UPDATES PAUSED':liveCount?`${liveCount} LIVE`:items.length?'WAITING':'';
+  replace('agents-body',[items,data?.connected,page,unavailable],()=>{
+    if(unavailable)return [el('p','agent-empty','Reconnecting to Hermes…')];
     if(!items.length)return [el('p','agent-empty','No agents running right now.')];
     const out=[];
     for(const a of items.slice(page*6,page*6+6)){
@@ -278,7 +279,8 @@ $('more-tasks').addEventListener('click',()=>{expandedTasks=!expandedTasks;rende
 $('undo-snooze').addEventListener('click',()=>{preferences.snoozed={};save();render();});
 $('details-toggle').addEventListener('click',()=>{const open=$('details-panel').hidden;$('details-panel').hidden=!open;$('details-toggle').setAttribute('aria-expanded',String(open));$('details-toggle').replaceChildren(document.createTextNode('Around you '),el('span','',open?'−':'＋'));render();if(open)reveal($('details-panel'));});
 function accept(next){if(!next?.modules)return;state=next;connected=true;if(!example)try{localStorage.setItem(cacheKey,JSON.stringify(next));}catch{}render();}
-async function poll(){try{const r=await fetch('/api/state',{cache:'no-store',signal:AbortSignal.timeout(8000)});if(!r.ok)throw new Error('unavailable');accept(await r.json());}catch{connected=false;render();}}
+let polling=false;
+async function poll(){if(polling)return;polling=true;try{const r=await fetch('/api/state?view=dashboard',{cache:'no-store',signal:AbortSignal.timeout(8000)});if(!r.ok)throw new Error('unavailable');accept(await r.json());}catch{connected=false;render();}finally{polling=false;}}
 if(example){
   $('example-bar').hidden=false;
   const {exampleState}=await import('./dashboard-examples.js?v=9');
@@ -287,13 +289,14 @@ if(example){
   const {startLiveUpdates}=await import('./live-updates.js');
   startLiveUpdates();
   state=load(cacheKey,null);render();poll();
-  const stream=new EventSource('/api/events');
+  const stream=new EventSource('/api/events?view=dashboard');
   stream.addEventListener('state',e=>{try{accept(JSON.parse(e.data));}catch{}});
   stream.addEventListener('open',()=>{connected=true;render();});
   stream.addEventListener('error',()=>{connected=false;render();});
   stream.addEventListener('say',e=>{try{const d=JSON.parse(e.data);spoken={text:String(d.text??'').slice(0,220),until:Date.now()+Math.min(Number(d.holdMs)||20000,60000)};clearTimeout(speechTimer);speechTimer=setTimeout(()=>{spoken=null;render();},Math.max(0,spoken.until-Date.now()));render();}catch{}});
   stream.addEventListener('sensors',e=>{try{sensors=JSON.parse(e.data);if(sensors.present===true){presenceSince??=Date.now();}else presenceSince=null;}catch{}});
-  setInterval(poll,60000);
+  // Faster than the agent feed's 30-second freshness window, even without SSE.
+  setInterval(poll,15000);
 }
 setInterval(render,5000);
 if(mirror&&!matchMedia('(prefers-reduced-motion: reduce)').matches)setInterval(()=>{$('dashboard').style.transform=`translate(${Math.round(Math.random()*6-3)}px,${Math.round(Math.random()*6-3)}px)`;},10*MINUTE);
