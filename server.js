@@ -13,6 +13,7 @@ import { Store } from './src/store.js';
 import { Voice } from './src/voice.js';
 import { mountLiveDashboard } from './src/frontend-release.js';
 import { dashboardState } from './src/dashboard-state.js';
+import { createCameraHandler } from './src/camera.js';
 
 const log = createLogger('mirror');
 
@@ -43,6 +44,7 @@ app.get('/api/state', (req, res) => {
 });
 
 app.get('/api/events', events.handler);
+app.get('/api/camera/frame.jpg', createCameraHandler({config}));
 
 // Only the room-light state is needed by the Pi brightness controller.
 app.get('/api/lighting', (_req, res) => {

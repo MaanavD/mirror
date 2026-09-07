@@ -33,11 +33,20 @@ a:focus-visible, button:focus-visible, .agent-station:focus-visible { outline: 1
 #dashboard {
   display: grid; max-width: 1376px; margin: auto; padding: var(--s4) var(--s6);
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
-  grid-template-areas: 'masthead rail' 'timeline rail' 'music rail' 'agents agents' 'footer footer' 'progress horizon' 'details details';
+  grid-template-areas: 'masthead rail' 'timeline rail' 'camera rail' 'music rail' 'agents agents' 'footer footer' 'progress horizon' 'details details';
   gap: var(--s6) 80px;
   transition: opacity .7s ease;
 }
 .masthead { grid-area: masthead; }
+.camera-view { grid-area: camera; min-width: 0; }
+.camera-heading { display: flex; justify-content: space-between; gap: 16px; font-size: 18px; color: var(--muted); margin-bottom: 12px; }
+.camera-heading .live { color: var(--accent); }
+.camera-stage { position: relative; width: 100%; aspect-ratio: 1.1; background: #03090c; border: 1px solid var(--line); overflow: hidden; display: grid; place-items: center; }
+#camera-image { width: 100%; height: 100%; position: absolute; inset: 0; object-fit: cover; }
+#camera-image.flipped { transform: scaleX(-1); }
+#camera-message { max-width: 80%; text-align: center; color: var(--secondary); font-size: 25px; }
+#camera-flip { margin-top: 8px; min-height: 28px; }
+#camera-flip[aria-pressed=true] { color: var(--accent); }
 .eyebrow, .source-note { font: 17px/1.25 var(--terminal); color: var(--muted); }
 .masthead > .eyebrow { font-size: 24px; color: var(--secondary); }
 .time { display: flex; align-items: baseline; gap: var(--s2); font-variant-numeric: tabular-nums; }
@@ -169,6 +178,9 @@ body.mirror { width: 1080px; height: 1920px; overflow: hidden; cursor: none; }
 .mirror .masthead { position: absolute; left: 40px; top: 48px; width: 640px; }
 .mirror .right-rail { position: absolute; top: 56px; left: 744px; width: 296px; gap: var(--s4); }
 .mirror .day-timeline { position: absolute; left: 40px; top: 288px; width: 640px; }
+.mirror .camera-view { position: absolute; left: 40px; top: 488px; width: 640px; }
+.mirror .camera-stage { height: 584px; aspect-ratio: auto; }
+.mirror #camera-flip { display: none; }
 .mirror .forecast { display: none; }
 .mirror .notice, .mirror .quiet-state { padding: 20px; }
 .mirror .notice h3, .mirror .quiet-state h3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }

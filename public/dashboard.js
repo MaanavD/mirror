@@ -292,6 +292,28 @@ $('more-tasks').addEventListener('click',()=>{expandedTasks=!expandedTasks;rende
 $('undo-snooze').addEventListener('click',()=>{preferences.snoozed={};save();render();});
 $('details-toggle').addEventListener('click',()=>{const open=$('details-panel').hidden;$('details-panel').hidden=!open;$('details-toggle').setAttribute('aria-expanded',String(open));$('details-toggle').replaceChildren(document.createTextNode('Around you '),el('span','',open?'−':'＋'));render();if(open)reveal($('details-panel'));});
 function accept(next){if(!next?.modules)return;state=next;connected=true;if(!example)try{localStorage.setItem(cacheKey,JSON.stringify(next));}catch{}render();}
+let cameraObjectUrl=null;
+async function cameraLoop(){
+  let delay=80;
+  try {
+    if(document.hidden){delay=1000;return;}
+    const response=await fetch('/api/camera/frame.jpg',{cache:'no-store',signal:AbortSignal.timeout(4500)});
+    if(!response.ok){const data=await response.json().catch(()=>({}));throw new Error(data.error||'Camera unavailable');}
+    const nextUrl=URL.createObjectURL(await response.blob()),image=$('camera-image');
+    const previous=cameraObjectUrl;
+    image.src=nextUrl;cameraObjectUrl=nextUrl;
+    try {await image.decode();}finally{if(previous)URL.revokeObjectURL(previous);}
+    image.hidden=false;$('camera-message').hidden=true;
+    $('camera-status').textContent='LIVE';$('camera-status').classList.add('live');
+  } catch(error) {
+    delay=3000;$('camera-image').hidden=true;$('camera-message').hidden=false;
+    $('camera-message').textContent=error.name==='TimeoutError'?'Camera connection lost':error.message;
+    $('camera-status').textContent='OFFLINE';$('camera-status').classList.remove('live');
+    if(cameraObjectUrl){URL.revokeObjectURL(cameraObjectUrl);cameraObjectUrl=null;}
+  } finally {setTimeout(cameraLoop,delay);}
+}
+$('camera-flip').addEventListener('click',()=>{const flipped=$('camera-image').classList.toggle('flipped');$('camera-flip').setAttribute('aria-pressed',String(flipped));});
+if(example)document.querySelector('.camera-view').hidden=true;else cameraLoop();
 let polling=false;
 async function poll(){if(polling)return;polling=true;try{const r=await fetch('/api/state?view=dashboard',{cache:'no-store',signal:AbortSignal.timeout(8000)});if(!r.ok)throw new Error('unavailable');accept(await r.json());}catch{connected=false;render();}finally{polling=false;}}
 if(example){

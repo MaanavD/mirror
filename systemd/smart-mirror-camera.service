@@ -1,0 +1,19 @@
+[Unit]
+Description=Logitech Brio live camera frames
+After=network.target
+
+[Service]
+Type=simple
+User=maanav-pi
+SupplementaryGroups=video
+EnvironmentFile=/etc/default/pi-agent
+ExecStart=/usr/bin/python3 /opt/pi-agent/camera.py
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
