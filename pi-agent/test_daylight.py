@@ -34,12 +34,14 @@ class DaylightTests(unittest.TestCase):
         self.assertEqual(daylight_brightness(dt),daylight_brightness(dt.astimezone(timezone.utc)))
         with self.assertRaises(ValueError): solar_elevation(datetime(2026,9,5),47.6,-122.3)
 
-    def test_pwm_preserves_minimum_on_pulse_and_exact_duty(self):
+    def test_pwm_keeps_25khz_carrier_with_a_duty_floor(self):
         for percent in range(1,101):
             pct,period,duty=pwm_settings(percent)
+            self.assertEqual(period,40000)
             self.assertGreaterEqual(duty,1600)
-            self.assertAlmostEqual(duty/period*100,percent)
-        self.assertEqual(pwm_settings(1),(1,160000,1600))
+            if percent>=4: self.assertAlmostEqual(duty/period*100,percent)
+        self.assertEqual(pwm_settings(1),(1,40000,1600))
+        self.assertEqual(pwm_settings(4),(4,40000,1600))
         self.assertEqual(pwm_settings(20),(20,40000,8000))
 
     def test_frequency_transitions_write_zero_before_period(self):
