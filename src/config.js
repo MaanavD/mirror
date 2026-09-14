@@ -85,12 +85,20 @@ export const config = {
   },
 
   ha: {
-    url: str('HA_URL', 'http://100.97.0.104:8123').replace(/\/+$/, ''),
+    url: str('HA_URL', 'http://127.0.0.1:8123').replace(/\/+$/, ''),
     tokenFile: resolvePath('HA_TOKEN_FILE', '/home/hermes/.hermes/ha_token'),
   },
 
   nanoleaf: {
     entities: ['light.shapes_a418', 'light.shapes_dedf'],
+  },
+
+  wellness: {
+    // The wellness profile is the single source of truth for the sleep target
+    // (edited by hand; the mirror only reads it). Read per fetch so an edit
+    // reaches the glass without restarting the service.
+    profileFile: str('WELLNESS_PROFILE_FILE', '/home/maanav/.hermes/wellness/profile.json'),
+    targetBedtime: str('TARGET_BEDTIME', '23:30'),
   },
 
   countdown: {

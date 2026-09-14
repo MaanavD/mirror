@@ -1,8 +1,11 @@
 # Actual Debian 13 / Weston system service on smart-mirror.
+# The dashboard host is surface-hermes (100.94.66.103). It used to be
+# maanav-hermes (100.97.0.104), which went offline on 2026-09-08; the kiosk then
+# sat in wait_for_dashboard.py forever and the panel stayed dark.
 [Unit]
 Description=Smart mirror Chromium kiosk
-After=systemd-user-sessions.service network-online.target smart-mirror-camera.service
-Wants=network-online.target smart-mirror-camera.service
+After=systemd-user-sessions.service network-online.target
+Wants=network-online.target
 Conflicts=getty@tty1.service
 
 [Service]
@@ -18,8 +21,8 @@ TTYVHangup=yes
 TTYVTDisallocate=yes
 TimeoutStartSec=0
 ExecStartPre=/bin/sleep 45
-ExecStartPre=/usr/bin/python3 /opt/pi-agent/wait_for_dashboard.py http://127.0.0.1:8421/dashboard?view=mirror
-ExecStart=/usr/bin/dbus-run-session -- /usr/bin/weston --backend=drm --shell=kiosk-shell.so --idle-time=0 --config=/etc/xdg/weston/smart-mirror.ini -- /usr/bin/chromium --ozone-platform=wayland --enable-features=UseOzonePlatform --kiosk --no-first-run --noerrdialogs --disable-session-crashed-bubble http://127.0.0.1:8421/dashboard?view=mirror
+ExecStartPre=/usr/bin/python3 /opt/pi-agent/wait_for_dashboard.py http://100.94.66.103:8390/dashboard?view=mirror
+ExecStart=/usr/bin/dbus-run-session -- /usr/bin/weston --backend=drm --shell=kiosk-shell.so --idle-time=0 --config=/etc/xdg/weston/smart-mirror.ini -- /usr/bin/chromium --ozone-platform=wayland --enable-features=UseOzonePlatform --kiosk --no-first-run --noerrdialogs --disable-session-crashed-bubble http://100.94.66.103:8390/dashboard?view=mirror
 Restart=always
 RestartSec=2
 

@@ -81,6 +81,12 @@ class PresenceTransitions(unittest.TestCase):
         self.assertFalse(controller.display_on)
         self.assertEqual(records, [])
 
+    def test_unavailable_camera_does_not_hold_display_on_forever(self):
+        controller, records = self.replay([None] * 21, initially_on=True)
+        self.assertIsNone(controller.present)
+        self.assertFalse(controller.display_on)
+        self.assertTrue(all(t >= 102 for t, _, _ in records))
+
     def test_night_wake_stays_at_one_percent(self):
         controller, records = self.replay([True] * 8, target=1)
         self.assertEqual(controller.current_percent, 1)

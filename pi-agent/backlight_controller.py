@@ -275,7 +275,10 @@ class Controller:
             self.sensor_push_thread = threading.Thread(target=push, name="sensor-telemetry", daemon=True)
             self.sensor_push_thread.start()
 
-    def _read_presence(self) -> bool:
+    def _read_presence(self) -> bool | None:
+        if PRESENCE_SOURCE == 'camera':
+            from camera_presence import read_presence_state
+            return read_presence_state()
         if self.sensor is None:
             from gpiozero import DigitalInputDevice
             self.sensor = DigitalInputDevice(PRESENCE_GPIO, pull_up=False)
@@ -362,7 +365,7 @@ class Controller:
 
     def run(self) -> None:
         log(
-            f"starting GPIO{PRESENCE_GPIO}, {I2C_DEVICE}@0x{I2C_ADDRESS:02x}, "
+            f"starting presence={PRESENCE_SOURCE}, {I2C_DEVICE}@0x{I2C_ADDRESS:02x}, "
             f"quiet {QUIET_START}-{QUIET_END} cap={QUIET_MAX_PERCENT}%"
         )
         # The previous boot initializer turns the inverter on. Make the daemon's
@@ -377,10 +380,11 @@ class Controller:
                     previous = self.present
                     self.present = present
                 if previous is not present:
-                    log(f"LD2410 GPIO{PRESENCE_GPIO}={'HIGH/present' if present else 'LOW/clear'}")
+                    label = 'unavailable' if present is None else 'present' if present else 'clear'
+                    log(f"presence source={PRESENCE_SOURCE}: {label}")
                 if present:
                     self.last_presence_at = now
-                elif previous is True:
+                elif present is False and previous is True:
                     log("presence cleared; waiting for absence timeout")
 
                 try:

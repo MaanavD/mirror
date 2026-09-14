@@ -10,6 +10,11 @@ export const EIGHT_SLEEP_ENV_FILE = '/home/hermes/.hermes/.env';
 export const CACHE_TTL_MS = 30 * 60_000;
 export const DEFAULT_SLEEP_HOURS = 8;
 export const DEFAULT_WAKE_DAY_CUTOFF_HOUR = 4;
+// Maanav's standing target bed time; wellness/profile.json overrides it.
+export const DEFAULT_TARGET_BEDTIME = '23:30';
+export const DEFAULT_WELLNESS_PROFILE_FILE = '/home/maanav/.hermes/wellness/profile.json';
+// A recorded night longer than this is a bad session, not a night of sleep.
+const MAX_SESSION_HOURS = 16;
 
 const ALARM_CLIENT_SCRIPT = `
 import json
@@ -149,7 +154,14 @@ export function normalizeReadiness(payload) {
   if (score === null || hrv === null) {
     throw new Error('readiness payload missing score or HRV');
   }
-  return { score: Math.max(0, Math.min(100, score)), hrv: Math.max(0, hrv) };
+  // score/hrv here are multi-night averages (the readiness window), not last
+  // night. `nights` lets the dashboard label them as such.
+  const nights = rounded(raw.nights_analyzed, raw.nightsAnalyzed, raw.nights);
+  return {
+    score: Math.max(0, Math.min(100, score)),
+    hrv: Math.max(0, hrv),
+    nights: nights !== null && nights > 0 ? nights : null,
+  };
 }
 
 function alarmEntries(payload) {
@@ -325,10 +337,39 @@ export function normalizeWake(payload, {
     source: 'eight_sleep',
     incomplete,
     ageMinutes,
+    // Nightly values: this session only, never a multi-night average.
+    durationHours: finite(raw.sleep_duration_h, raw.sleep_duration_hours, raw.sleepDurationH),
+    score: rounded(raw.sleep_score, raw.sleepScore),
     usable: Boolean(wakeAt && dateState.usable && !incomplete),
     fresh: Boolean(wakeAt && dateState.usable && !incomplete),
     freshness,
   };
+}
+
+/** The configured target bed time, defaulting to Maanav's 23:30. */
+export function sleepTarget(targetBed = null, source = null, fallback = DEFAULT_TARGET_BEDTIME) {
+  const configured = timeParts(targetBed, null);
+  const parts = configured ?? timeParts(fallback, null);
+  if (!parts) return null;
+  return {
+    hour: parts.hour,
+    minute: parts.minute,
+    minutes: parts.hour * 60 + parts.minute,
+    clock: formatAlarmTime(parts),
+    // Never present a fallback as if the profile said it.
+    source: source ?? (configured ? 'configuration' : `default ${fallback}`),
+  };
+}
+
+function readTargetBedtime(file = DEFAULT_WELLNESS_PROFILE_FILE) {
+  if (!file) return null;
+  try {
+    const profile = JSON.parse(readFileSync(file, 'utf8'));
+    return profile?.sleep?.target_bed_local ?? null;
+  } catch {
+    // A missing or hand-broken profile keeps the built-in target.
+    return null;
+  }
 }
 
 function bedtimeCandidate(payload, { now, timezone, wakeDate }) {
@@ -359,7 +400,9 @@ function bedtimeCandidate(payload, { now, timezone, wakeDate }) {
  * wake is only usable for its local waking day (or the previous day before
  * the 4am overnight cutoff). Bedtime is an Eight Sleep recommendation only
  * when one is explicitly present; otherwise it is an estimate from the next
- * daily alarm minus the configured default sleep opportunity.
+ * daily alarm minus the configured default sleep opportunity. `sleepTarget`
+ * is the configured bed time (wellness profile) and is always labeled as a
+ * target, never as a measurement.
  */
 export function normalizeDayWindow({
   wake = null,
@@ -369,6 +412,8 @@ export function normalizeDayWindow({
   timezone = 'America/Los_Angeles',
   defaultSleepHours = DEFAULT_SLEEP_HOURS,
   wakeDayCutoffHour = DEFAULT_WAKE_DAY_CUTOFF_HOUR,
+  targetBedtime = null,
+  targetBedtimeSource = null,
 } = {}) {
   let normalizedWake = null;
   if (wake) {
@@ -379,6 +424,7 @@ export function normalizeDayWindow({
       normalizedWake = { at: null, date: null, source: 'eight_sleep', incomplete: false, fresh: false, freshness: 'unavailable', usable: false };
     }
   }
+  const target = sleepTarget(targetBedtime, targetBedtimeSource);
   const wakeUsable = normalizedWake?.usable === true;
   const window = {
     wakeAt: wakeUsable ? normalizedWake.at : null,
@@ -396,6 +442,21 @@ export function normalizeDayWindow({
     incomplete: normalizedWake?.incomplete ?? false,
     basis: null,
     sleepHours: null,
+    // Last night's own numbers. Stale and incomplete sessions are rejected
+    // here so nothing downstream can present them as a fresh night.
+    lastNight: wakeUsable ? {
+      date: normalizedWake.date ?? null,
+      wakeAt: normalizedWake.at,
+      durationHours: Number.isFinite(normalizedWake.durationHours)
+        && normalizedWake.durationHours > 0
+        && normalizedWake.durationHours <= MAX_SESSION_HOURS
+        ? Math.round(normalizedWake.durationHours * 10) / 10
+        : null,
+      score: Number.isFinite(normalizedWake.score) && normalizedWake.score > 0 ? normalizedWake.score : null,
+    } : null,
+    sleepTargetMinutes: target?.minutes ?? null,
+    sleepTargetClock: target?.clock ?? null,
+    sleepTargetSource: target?.source ?? 'unavailable',
   };
   if (!wakeUsable) return window;
 
@@ -502,6 +563,7 @@ export function shapeWellness({
     emotion,
     score: normalized.score,
     hrv: normalized.hrv,
+    nights: normalized.nights ?? null,
     alarm: alarm || null,
     subline: parts.join(' · '),
     dayWindow,
@@ -535,6 +597,10 @@ async function fetchLive({ config, now, getModule, log }) {
     })()
     : null;
   const alarm = alarms ? nextAlarm(alarms, { now, timezone }) : null;
+  // The wellness profile owns the target bed time; the service config and the
+  // built-in default are honest fallbacks and are labeled as such.
+  const profileTarget = readTargetBedtime(config?.wellness?.profileFile ?? DEFAULT_WELLNESS_PROFILE_FILE);
+  const configuredTarget = config?.wellness?.targetBedtime;
   const dayWindow = normalizeDayWindow({
     wake,
     readiness,
@@ -543,6 +609,8 @@ async function fetchLive({ config, now, getModule, log }) {
     timezone,
     defaultSleepHours: config?.defaultSleepHours ?? DEFAULT_SLEEP_HOURS,
     wakeDayCutoffHour: config?.wakeDayCutoffHour ?? DEFAULT_WAKE_DAY_CUTOFF_HOUR,
+    targetBedtime: profileTarget ?? configuredTarget ?? DEFAULT_TARGET_BEDTIME,
+    targetBedtimeSource: profileTarget ? 'wellness profile' : configuredTarget ? 'service config' : `default ${DEFAULT_TARGET_BEDTIME}`,
   });
   return shapeWellness({
     readiness: normalizedReadiness,

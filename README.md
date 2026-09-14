@@ -86,7 +86,7 @@ reference; the table below is the summary.
 | `GOOGLE_CALENDAR_IDS` | — | Comma-separated; merged chronologically |
 | `NOTION_TOKEN` | — | Empty ⇒ todos module is a stub |
 | `NOTION_DATABASE_ID` | `881a4949…b939` | |
-| `HA_URL` | `http://100.97.0.104:8123` | Home Assistant REST endpoint for Nanoleaf state |
+| `HA_URL` | `http://127.0.0.1:8123` | Home Assistant REST endpoint for Nanoleaf state |
 | `HA_TOKEN_FILE` | `/home/hermes/.hermes/ha_token` | Read server-side; never exposed to the browser |
 | `ZENQUOTES_MODE` | `today` | `today` or `random` |
 | `DISPLAY_TOKEN` | — | Bearer token for `/api/display/*`; empty ⇒ 503 |

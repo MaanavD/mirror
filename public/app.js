@@ -69,6 +69,34 @@ import { createModeMachine } from './mode.js';
   const hermyCaptionEl = q('#hermy-caption');
   const nowPlayingEl = q('#now-playing');
   const leavebyEl = q('#leaveby');
+  const sensorPresenceEl = q('#sensor-presence');
+  const sensorLuxEl = q('#sensor-lux');
+  const sensorStatusEl = q('#sensor-status');
+
+  function renderSensorTest(data) {
+    if (!sensorPresenceEl || !sensorLuxEl || !sensorStatusEl) return;
+    sensorPresenceEl.textContent = data?.present === true
+      ? 'detected'
+      : data?.present === false
+        ? 'clear'
+        : 'waiting';
+    const rawLux = data?.lux;
+    const lux = rawLux === null || rawLux === undefined
+      || (typeof rawLux === 'string' && rawLux.trim() === '')
+      ? null
+      : Number(rawLux);
+    sensorLuxEl.textContent = Number.isFinite(lux) ? `${lux.toFixed(1)} lux` : 'no reading';
+    sensorStatusEl.textContent = data?.updatedAt ? 'live' : 'waiting for pi';
+  }
+
+  async function pollSensors() {
+    try {
+      const res = await fetch('/api/sensors', { cache: 'no-store' });
+      if (res.ok) renderSensorTest(await res.json());
+    } catch {
+      // Keep the last sensor values visible while the server is unreachable.
+    }
+  }
 
   // -------------------------------------------------------------- clock
 
@@ -1392,6 +1420,13 @@ import { createModeMachine } from './mode.js';
         // malformed presence frame: ignore
       }
     });
+    source.addEventListener('sensors', (event) => {
+      try {
+        renderSensorTest(JSON.parse(event.data));
+      } catch {
+        // malformed sensor frame: keep the last readout
+      }
+    });
     source.addEventListener('error', () => {
       source.close();
       startPolling();
@@ -1698,6 +1733,7 @@ import { createModeMachine } from './mode.js';
   paintClock();
   modes.sync();
   hydrate();
+  pollSensors();
   pollOnce();
   connect();
   tickVinyl();

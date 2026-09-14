@@ -196,6 +196,24 @@
       <div id="dot" class="dot"></div>
     </main>
 
+    <!-- Temporary hardware test readout. It is deliberately outside #root so
+         the existing soft-off behavior remains unchanged while this panel is
+         visible for sensor debugging. -->
+    <section id="sensor-test" class="sensor-test" aria-label="Sensor test values">
+      <div class="sensor-test-title">sensor test</div>
+      <div class="sensor-test-grid">
+        <div class="sensor-readout">
+          <span class="sensor-label">presence</span>
+          <strong id="sensor-presence">waiting</strong>
+        </div>
+        <div class="sensor-readout">
+          <span class="sensor-label">light</span>
+          <strong id="sensor-lux">no reading</strong>
+        </div>
+      </div>
+      <div id="sensor-status" class="sensor-test-status">waiting for pi</div>
+    </section>
+
     <!-- One-shot boot / "JACK IN" overlay (see app.js bootAnimation). Pure
          black, line-work only; removed from the DOM when it finishes and
          skipped entirely under prefers-reduced-motion. The window frames draw

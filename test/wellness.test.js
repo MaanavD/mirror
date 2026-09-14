@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 import {
   clearWellnessCache,
@@ -12,12 +14,14 @@ import {
   setAlarm,
   setPythonRunner,
   shapeWellness,
+  sleepTarget,
   wellnessModule,
 } from '../src/modules/wellness.js';
 
 const TZ = 'America/Los_Angeles';
 const NOW = new Date('2026-08-24T12:00:00Z');
-const CONFIG = { timezone: TZ, fetchTimeoutMs: 10_000 };
+// profileFile: '' keeps the suite off the real wellness profile on this machine.
+const CONFIG = { timezone: TZ, fetchTimeoutMs: 10_000, wellness: { profileFile: '' } };
 
 function calendar(count) {
   return { data: { today: Array.from({ length: count }, (_, i) => ({ id: `e${i}` })), todayMore: 0 } };
@@ -53,6 +57,7 @@ test('fetch shells out to readiness and alarm client, then shapes the wellness l
     assert.equal(data.emotion, 'STEADY');
     assert.equal(data.score, 78);
     assert.equal(data.hrv, 62);
+    assert.equal(data.nights, null, 'a readiness payload without a night count is not labeled as an average of N');
     assert.equal(data.alarm, '6:40A');
     assert.equal(data.subline, 'HRV 62 · SLEEP 78 · ALARM 6:40A');
     assert.deepEqual(data.dayWindow, {
@@ -71,6 +76,10 @@ test('fetch shells out to readiness and alarm client, then shapes the wellness l
       incomplete: false,
       basis: 'next alarm minus 8h default sleep opportunity',
       sleepHours: 8,
+      lastNight: { date: '2026-08-24', wakeAt: '2026-08-24T11:42:30.000Z', durationHours: null, score: null },
+      sleepTargetMinutes: 1410,
+      sleepTargetClock: '11:30P',
+      sleepTargetSource: 'default 23:30',
     });
     assert.equal(calls.length, 3);
     assert.deepEqual(calls[0].args.slice(-2), ['/home/hermes/.hermes/scripts/eight_sleep_client.py', 'readiness']);
@@ -322,6 +331,111 @@ test('a bedtime recommendation outside the waking day falls back to an ordered e
 // Keep the pure shape contract visible to future changes.
 test('shapeWellness exposes the renderer and day-window contracts', () => {
   assert.deepEqual(Object.keys(shapeWellness({ readiness: { score: 78, hrv: 62 }, alarm: '6:40A' })).sort(), [
-    'alarm', 'dayWindow', 'emotion', 'hrv', 'score', 'subline',
+    'alarm', 'dayWindow', 'emotion', 'hrv', 'nights', 'score', 'subline',
   ]);
+});
+
+test('a fresh night reports its own duration and score, never the multi-night average', () => {
+  const window = normalizeDayWindow({
+    wake: {
+      ok: true,
+      wake_local: '2026-09-11T09:00:30-07:00',
+      wake_date_local: '2026-09-11',
+      incomplete: false,
+      sleep_duration_h: 8.2,
+      sleep_score: 90,
+      source: 'eight_sleep',
+    },
+    readiness: { ok: true, sleep_score_avg: 80, hrv_rmssd_avg: 45.91, nights_analyzed: 6 },
+    now: new Date('2026-09-11T16:30:00Z'),
+    timezone: TZ,
+  });
+  assert.deepEqual(window.lastNight, {
+    date: '2026-09-11',
+    wakeAt: '2026-09-11T16:00:30.000Z',
+    durationHours: 8.2,
+    score: 90,
+  });
+  const shaped = shapeWellness({ readiness: { ok: true, sleep_score_avg: 80, hrv_rmssd_avg: 45.91, nights_analyzed: 6 }, dayWindow: window });
+  assert.equal(shaped.score, 80, 'the panel score stays the readiness average');
+  assert.equal(shaped.nights, 6, 'the average is labeled with the nights it covers');
+});
+
+test('stale, incomplete and implausible nights are rejected instead of shown', () => {
+  const wake = extra => ({
+    ok: true,
+    wake_local: '2026-08-24T08:00:00-07:00',
+    wake_date_local: '2026-08-24',
+    incomplete: false,
+    sleep_duration_h: 7.4,
+    sleep_score: 88,
+    source: 'eight_sleep',
+    ...extra,
+  });
+  const common = { alarms: { alarms: [{ enabled: true, time: '06:40' }] }, now: new Date('2026-08-24T18:00:00Z'), timezone: TZ };
+  const incomplete = normalizeDayWindow({ wake: wake({ incomplete: true }), ...common });
+  assert.equal(incomplete.lastNight, null);
+  assert.equal(incomplete.sleepTargetMinutes, 1410, 'the bed target survives an unusable night');
+  const stale = normalizeDayWindow({ wake: wake({ wake_date_local: '2026-08-22', wake_local: '2026-08-22T08:00:00-07:00' }), ...common });
+  assert.equal(stale.lastNight, null);
+  assert.equal(stale.sleepTargetClock, '11:30P');
+  const implausible = normalizeDayWindow({ wake: wake({ sleep_duration_h: 41 }), ...common });
+  assert.equal(implausible.lastNight.durationHours, null);
+  assert.equal(implausible.lastNight.score, 88, 'a bad duration does not discard a usable score');
+  const missing = normalizeDayWindow({ wake: wake({ sleep_duration_h: null, sleep_score: null }), ...common });
+  assert.deepEqual(missing.lastNight, { date: '2026-08-24', wakeAt: '2026-08-24T15:00:00.000Z', durationHours: null, score: null });
+});
+
+test('the target bed time comes from the wellness profile and is labeled as a target', async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'wellness-profile-'));
+  const file = path.join(dir, 'profile.json');
+  const config = { ...CONFIG, wellness: { profileFile: file } };
+  try {
+    assert.equal(sleepTarget('22:45', 'wellness profile').clock, '10:45P');
+    assert.equal(sleepTarget('22:45', 'wellness profile').minutes, 22 * 60 + 45);
+
+    writeFileSync(file, JSON.stringify({ sleep: { target_bed_local: '22:45' } }));
+    clearWellnessCache();
+    const restore = setPythonRunner(async (_file, args) => {
+      if (args.includes('readiness')) return { stdout: JSON.stringify({ ok: true, score: 80, hrv: 46, nights_analyzed: 6 }) };
+      if (args.includes('wake')) return { stdout: JSON.stringify({ ok: true, wake_local: '2026-08-24T08:00:00-07:00', wake_date_local: '2026-08-24', incomplete: false, sleep_duration_h: 8.1, sleep_score: 90 }) };
+      return { stdout: JSON.stringify({ alarms: [] }) };
+    });
+    try {
+      const data = await wellnessModule.fetch({ config, now: NOW });
+      assert.equal(data.dayWindow.sleepTargetClock, '10:45P');
+      assert.equal(data.dayWindow.sleepTargetMinutes, 1365);
+      assert.equal(data.dayWindow.sleepTargetSource, 'wellness profile');
+      assert.equal(data.dayWindow.bedtimeSource, null, 'no false bedtime is invented from the target');
+
+      // An unreadable profile keeps the built-in 23:30 and says so.
+      writeFileSync(file, '{ not json');
+      clearWellnessCache();
+      const fallback = await wellnessModule.fetch({ config, now: NOW });
+      assert.equal(fallback.dayWindow.sleepTargetClock, '11:30P');
+      assert.equal(fallback.dayWindow.sleepTargetSource, 'default 23:30');
+    } finally {
+      restore();
+      clearWellnessCache();
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('the dashboard renders an always-visible sleep line outside the Around you panel', () => {
+  const html = readFileSync(new URL('../public/dashboard.html', import.meta.url), 'utf8');
+  const app = readFileSync(new URL('../public/dashboard.js', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../public/dashboard.css', import.meta.url), 'utf8');
+  const masthead = html.indexOf('class="masthead"');
+  const lights = html.indexOf('id="room-lights"');
+  const sleep = html.indexOf('id="sleep-line"');
+  const timeline = html.indexOf('class="day-timeline"');
+  const details = html.indexOf('id="details-panel"');
+  assert.ok(masthead < lights && lights < sleep && sleep < timeline, 'the sleep line must sit in the masthead');
+  assert.ok(sleep < details, 'the sleep line is not inside the Around you panel');
+  assert.match(app, /renderSleep\(m,now,model\.timeZone\)/);
+  assert.match(app, /replace\('sleep-line'/);
+  assert.match(app, /\$\('sleep-line'\)/);
+  assert.match(css, /\.sleep-line\s*\{[\s\S]*?display:\s*flex/);
 });

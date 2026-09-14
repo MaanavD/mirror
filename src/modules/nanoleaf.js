@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import { fetchJson } from '../http.js';
 
-export const HA_DEFAULT_URL = 'http://100.97.0.104:8123';
+export const HA_DEFAULT_URL = 'http://127.0.0.1:8123';
 export const ENTITY_IDS = Object.freeze(['light.shapes_a418', 'light.shapes_dedf']);
 
 const DEFAULT_NAMES = Object.freeze({

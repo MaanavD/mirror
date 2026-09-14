@@ -10,9 +10,9 @@ export function lightingFor(entry, now=Date.now()) {
   });
 }
 
-export function localInstant(day, hour, zone) {
+export function localInstant(day, hour, zone, minute = 0) {
   const [y,m,d]=day.split('-').map(Number);
-  const target=Date.UTC(y,m-1,d,hour);
+  const target=Date.UTC(y,m-1,d,hour,minute);
   let value=target;
   for(let i=0;i<3;i++){
     const parts=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(value).filter(p=>p.type!=='literal').map(p=>[p.type,Number(p.value)]));
@@ -44,19 +44,33 @@ export function showTimeline(state,now=Date.now()) {
     return dateKey(start,zone)<=today&&dateKey(Number.isFinite(end)&&end>start?end-1:start,zone)>=today;
   });
 }
+// The configured bed time (wellness profile, 23:30 by default) is a target, not
+// a measurement, so it only bounds the window when Eight Sleep gave no bedtime
+// and the target actually falls after the wake.
+function targetEndInstant(w, start, zone) {
+  const minutes=Number(w?.sleepTargetMinutes);
+  if(!Number.isFinite(minutes)||minutes<0||minutes>=24*60||!Number.isFinite(start))return NaN;
+  const at=localInstant(dateKey(start,zone),Math.floor(minutes/60),zone,minutes%60);
+  return Number.isFinite(at)&&at>start?at:NaN;
+}
 export function wakingWindow(entry, now, zone) {
   const w=fresh(entry,'wellness',now)?entry.data?.dayWindow:null;
   const start=instant(w?.wakeAt);
   const explicitEnd=instant(w?.bedtimeAt);
   const validEnd=Number.isFinite(explicitEnd)&&explicitEnd>start&&explicitEnd-start<=24*60*MINUTE;
-  const end=validEnd?explicitEnd:Number.isFinite(start)?localInstant(dateKey(start,zone),24,zone):NaN;
+  const targetEnd=validEnd?NaN:targetEndInstant(w,start,zone);
+  const end=validEnd?explicitEnd:Number.isFinite(targetEnd)?targetEnd:Number.isFinite(start)?localInstant(dateKey(start,zone),24,zone):NaN;
   if(Number.isFinite(start)&&Number.isFinite(end)&&end>start&&end-start<=24*60*MINUTE&&now-start>=-6*60*MINUTE&&now-start<24*60*MINUTE){
+    const sleepLabel=validEnd?(w.bedtimeSource==='eight_sleep'?'Bedtime':'Suggested sleep'):Number.isFinite(targetEnd)?'Bed target':'Sleep ~';
     return {start,end,estimated:Boolean(w.estimated)||!validEnd,wakeLabel:w.wakeSource==='eight_sleep'?'Woke':'Wake',
-      sleepLabel:validEnd?(w.bedtimeSource==='eight_sleep'?'Bedtime':'Suggested sleep'):'Sleep ~',source:w.wakeSource==='eight_sleep'?`Eight Sleep wake${validEnd?'':' · sleep estimated'}`:'Estimated day'};
+      sleepLabel,
+      source:w.wakeSource==='eight_sleep'?`Eight Sleep wake${validEnd?'':Number.isFinite(targetEnd)?` · bed target ${w.sleepTargetClock}`:' · sleep estimated'}`:'Estimated day'};
   }
   let day=dateKey(now,zone);
   if(now<localInstant(day,4,zone))day=previousDay(day);
-  return {start:localInstant(day,9,zone),end:localInstant(day,24,zone),estimated:true,wakeLabel:'Wake ~',sleepLabel:'Sleep ~',source:'Estimated day · sleep data unavailable'};
+  const targetWake=targetEndInstant(w,localInstant(day,9,zone),zone);
+  return {start:localInstant(day,9,zone),end:Number.isFinite(targetWake)?targetWake:localInstant(day,24,zone),estimated:true,wakeLabel:'Wake ~',
+    sleepLabel:Number.isFinite(targetWake)?'Bed target':'Sleep ~',source:'Estimated day · sleep data unavailable'};
 }
 
 export function timelineFor(state, now=Date.now()) {

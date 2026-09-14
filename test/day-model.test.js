@@ -26,6 +26,28 @@ test('actual wake survives absent bedtime, with explicit estimate',()=>{
  const w=wakingWindow(entry({dayWindow:{wakeAt:at(9),bedtimeAt:null,wakeSource:'eight_sleep'}}),now,zone);
  assert.equal(w.start,Date.parse(at(9)));assert.equal(w.end,Date.parse(at(24)));assert.equal(w.estimated,true);assert.match(w.source,/sleep estimated/);
 });
+test('the 23:30 wellness target replaces the midnight fallback when no bedtime was measured',()=>{
+ const w=wakingWindow(entry({dayWindow:{wakeAt:at(9),bedtimeAt:null,wakeSource:'eight_sleep',sleepTargetMinutes:1410,sleepTargetClock:'11:30P'}}),now,zone);
+ assert.equal(w.start,Date.parse(at(9)));
+ assert.equal(w.end,new Date(localInstant('2026-09-06',23,zone,30)).getTime());
+ assert.equal(w.sleepLabel,'Bed target');
+ assert.match(w.source,/bed target 11:30P/);
+ assert.equal(w.estimated,true);
+ // A measured bedtime still wins over the target.
+ const measured=wakingWindow(entry({dayWindow:{wakeAt:at(9),bedtimeAt:at(22),bedtimeSource:'eight_sleep',wakeSource:'eight_sleep',sleepTargetMinutes:1410}}),now,zone);
+ assert.equal(measured.end,Date.parse(at(22)));assert.equal(measured.sleepLabel,'Bedtime');
+});
+test('an estimated day also ends at the target instead of midnight',()=>{
+ // No usable wake, but the wellness reading itself is current.
+ const e=entry({dayWindow:{wakeAt:null,sleepTargetMinutes:1410,sleepTargetClock:'11:30P'}});
+ const w=wakingWindow(e,now,zone);
+ assert.equal(w.start,Date.parse(at(9)));
+ assert.equal(w.end,new Date(localInstant('2026-09-06',23,zone,30)).getTime());
+ assert.equal(w.sleepLabel,'Bed target');
+ // A target that would land before the wake is ignored, not inverted.
+ const early=entry({dayWindow:{wakeAt:at(9),bedtimeAt:null,wakeSource:'eight_sleep',sleepTargetMinutes:8*60}});
+ assert.equal(wakingWindow(early,now,zone).end,Date.parse(at(24)));
+});
 test('overnight fallback uses previous day and discards stale wake',()=>{
  const e=entry({dayWindow:{wakeAt:at(9),bedtimeAt:at(23)}});e.stale=true;
  const w=wakingWindow(e,Date.parse('2026-09-07T09:00:00Z'),zone);

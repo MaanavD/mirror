@@ -64,6 +64,18 @@ def status():
     except OSError as e:
         return {"on": None, "error": str(e)}
 
+def log_peers():
+    """Name the local process talking to us: ss -p shows the client pid for
+    loopback sockets, so an unexplained /display/on stops being a mystery."""
+    try:
+        out = subprocess.run(
+            ["ss", "-tnp", "state", "established", "dport", "=", f":{PORT}"],
+            capture_output=True, text=True, timeout=3).stdout
+        for line in out.splitlines()[1:]:
+            print(f"peer: {line.strip()}", flush=True)
+    except Exception as e:
+        print(f"peer: ss failed: {e}", flush=True)
+
 class H(BaseHTTPRequestHandler):
     def _send(self, code, obj):
         body = json.dumps(obj).encode()
@@ -88,6 +100,8 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self._authed():
             return self._send(401, {"error": "unauthorized"})
+        if self.path.startswith("/display/"):
+            log_peers()
         try:
             if self.path in ("/display/on", "/display/off"):
                 display(self.path.endswith("/on"))
@@ -126,7 +140,13 @@ class H(BaseHTTPRequestHandler):
         self._send(404, {"error": "not found"})
 
     def log_message(self, fmt, *args):
-        pass
+        # Only writes matter: a POST /display/* is someone changing the panel.
+        # GET /display/status polls 30s apart from Home Assistant and would flood the journal.
+        if self.command == "POST":
+            code = args[1] if len(args) > 1 else "?"
+            ua = self.headers.get("User-Agent", "none")
+            ctype = self.headers.get("Content-Type", "none")
+            print(f"{self.client_address[0]}:{self.client_address[1]} {self.path} -> {code} ua={ua!r} ct={ctype!r}", flush=True)
 
 if __name__ == "__main__":
     HTTPServer(("0.0.0.0", PORT), H).serve_forever()

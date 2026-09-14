@@ -1,4 +1,8 @@
-# mirror dashboard server — runs on the TAILNET HOST, not the Pi.
+# mirror dashboard server.
+#
+# Runs on the always-on Tailscale host that serves the display, NOT on the Pi
+# (the Pi has no Node). The kiosk and the Pi's backlight controller both point
+# at this host, so this unit and those two URLs move together.
 #
 #   sudo cp systemd/mirror-server.service /etc/systemd/system/
 #   sudo systemctl daemon-reload
@@ -10,17 +14,17 @@
 
 [Unit]
 Description=mirror smart-mirror dashboard server
-Documentation=https://github.com/local/mirror
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=hermes
-Group=hermes
-WorkingDirectory=/home/hermes/mirror
-ExecStart=/home/hermes/.hermes/node/bin/node server.js
+User=maanav
+Group=maanav
+WorkingDirectory=/home/maanav/mirror
 Environment=NODE_ENV=production
+Environment=HOME=/home/maanav
+ExecStart=/home/maanav/.local/bin/node server.js
 Restart=always
 RestartSec=3
 # Never let a wedged process hold the port forever.
@@ -38,7 +42,7 @@ ProtectSystem=full
 ProtectControlGroups=yes
 ProtectKernelTunables=yes
 RestrictSUIDSGID=yes
-ReadWritePaths=/home/hermes/mirror/data
+ReadWritePaths=/home/maanav/mirror/data
 
 [Install]
 WantedBy=multi-user.target

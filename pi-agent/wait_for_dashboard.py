@@ -3,7 +3,7 @@ import sys
 import time
 import urllib.request
 
-url = sys.argv[1] if len(sys.argv) > 1 else 'http://100.97.0.104:8390/dashboard?view=mirror'
+url = sys.argv[1] if len(sys.argv) > 1 else 'http://100.94.66.103:8390/dashboard?view=mirror'
 while True:
     try:
         with urllib.request.urlopen(url, timeout=8) as response:

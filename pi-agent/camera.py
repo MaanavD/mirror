@@ -14,7 +14,7 @@ from urllib.parse import urlsplit
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 MAX_FRAME = 2_000_000
-MIRROR_ORIGIN = 'http://100.97.0.104:8390'
+MIRROR_ORIGIN = 'http://100.94.66.103:8390'
 LOCAL_ROUTES = {'/dashboard', '/dashboard.html', '/dashboard.js', '/dashboard.css',
                 '/day-model.js', '/attention.js', '/live-updates.js', '/dashboard-examples.js',
                 '/hermy-sheet-v4.png', '/api/state', '/api/events', '/api/sensors',

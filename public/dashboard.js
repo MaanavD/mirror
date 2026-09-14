@@ -159,13 +159,46 @@ function renderHorizon(m, now) {
     return data.items.slice(0,2).map(i=>{const row=el('div','horizon-row'),copy=el('div','horizon-copy');const title=String(i.label).toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()).replace(/\bSf\b/g,'SF');copy.append(el('p','',i.kind==='flight'?'NEXT TRIP':'COMING UP'),el('h3','',title));const count=el('div','horizon-days',i.days===0?'Today':i.days);if(i.days!==0)count.append(el('span','',i.days===1?'day':'days'));row.append(copy,count);return row;});
   });
 }
+function renderSleep(m,now,zone) {
+  const entry=m.wellness,w=fresh(entry,'wellness',now)?entry.data?.dayWindow:null;
+  replace('sleep-line',[w,Math.floor(now/MINUTE)],()=>{
+    const line=$('sleep-line');
+    const item=(label,value)=>{const n=el('span','sleep-item');n.append(el('span','sleep-label',label),el('span','sleep-value',value));return n;};
+    const rows=[];
+    const night=w?.lastNight;
+    if(w&&night){
+      rows.push(item('Last night',Number.isFinite(night.durationHours)?`${night.durationHours} h`:'duration unavailable'));
+      const wake=instant(night.wakeAt);
+      if(Number.isFinite(wake))rows.push(item('Woke',timeLabel(wake,zone)));
+      if(Number.isFinite(night.score))rows.push(item('Score',String(night.score)));
+    }else{
+      // A stale, incomplete or absent night is named as missing, not zeroed.
+      rows.push(item('Sleep',w?'Last night not recorded':'Sleep data unavailable'));
+    }
+    if(Number.isFinite(w?.sleepTargetMinutes))rows.push(item('Bed',`${w.sleepTargetClock} target`));
+    line.classList.toggle('missing',!w||!night);
+    return rows;
+  });
+}
 function renderDetails(m,now) {
   if($('details-panel').hidden)return;
   replace('details-panel',[m,sensors,Math.floor(now/MINUTE)],()=>{
     const blocks=[];
     const block=(title,lines,note)=>{const b=el('div','detail-block');b.append(el('h3','',title),...lines.map(v=>el('p','',v)));if(note)b.append(el('p','source-note',note));blocks.push(b);return b;};
     const wellness=fresh(m.wellness,'wellness',now)?m.wellness.data:null;
-    block('Sleep',wellness?[`Sleep score ${wellness.score??'—'}`,`HRV ${wellness.hrv??'—'}`]:['No recent sleep reading.'],noteFor('wellness',now));
+    const window=wellness?.dayWindow,night=window?.lastNight;
+    const sleepLines=[];
+    if(night){
+      sleepLines.push(`Last night ${Number.isFinite(night.durationHours)?`${night.durationHours} h`:'duration unavailable'}${Number.isFinite(night.score)?` · score ${night.score}`:''}`);
+    }else{
+      sleepLines.push(wellness?'Last night was not recorded.':'No recent sleep reading.');
+    }
+    if(Number.isFinite(wellness?.score)||Number.isFinite(wellness?.hrv)){
+      const averages=[Number.isFinite(wellness?.score)?`Sleep score ${wellness.score}`:null,Number.isFinite(wellness?.hrv)?`HRV ${wellness.hrv}`:null].filter(Boolean);
+      sleepLines.push(`${averages.join(' · ')} · ${wellness?.nights?`${wellness.nights}-night average`:'multi-night average'}`);
+    }
+    if(Number.isFinite(window?.sleepTargetMinutes))sleepLines.push(`Bed ${window.sleepTargetClock} target (${window.sleepTargetSource})`);
+    block('Sleep',sleepLines,noteFor('wellness',now));
     const music=fresh(m.spotify,'spotify',now)?m.spotify.data:null;
     block('Listening',music?.isPlaying&&music.track?[music.track.name,(music.track.artists??[]).join(', ')]:['Nothing playing right now.']);
     const lights=fresh(m.nanoleaf,'nanoleaf',now)?m.nanoleaf.data?.lights:[];
@@ -278,7 +311,7 @@ function render() {
   renderLighting(m,now);
   document.body.classList.toggle('soft-off',mirror&&!preview&&!example&&state?.display?.on===false);
   $('day-note').textContent=model.current?'A little focus, right here.':model.next?`Next on your calendar at ${timeLabel(instant(model.next.start),model.timeZone)}.`:'A little room to think.';
-  renderTimeline(now);renderAgents(m,now);renderProgress(m,now);renderMusic(m,now);renderWeather(m,now,model.timeZone);renderAttention(model,now);renderAgenda(m,model,now);renderTasks(m,now);renderHorizon(m,now);renderDetails(m,now);
+  renderTimeline(now);renderAgents(m,now);renderProgress(m,now);renderMusic(m,now);renderWeather(m,now,model.timeZone);renderAttention(model,now);renderAgenda(m,model,now);renderTasks(m,now);renderHorizon(m,now);renderSleep(m,now,model.timeZone);renderDetails(m,now);
   document.querySelector('.hermy-note').classList.toggle('speaking',spoken?.until>Date.now()||example==='talking');
   const quote=fresh(m.quote,'quote',now)?m.quote.data:null;
   $('hermy-note').textContent=spoken?.until>Date.now()?spoken.text:example==='talking'?'Let’s take it one thing at a time.':quote?.text??'You don’t have to do it all at once. Give the next small thing your attention.';
@@ -292,28 +325,6 @@ $('more-tasks').addEventListener('click',()=>{expandedTasks=!expandedTasks;rende
 $('undo-snooze').addEventListener('click',()=>{preferences.snoozed={};save();render();});
 $('details-toggle').addEventListener('click',()=>{const open=$('details-panel').hidden;$('details-panel').hidden=!open;$('details-toggle').setAttribute('aria-expanded',String(open));$('details-toggle').replaceChildren(document.createTextNode('Around you '),el('span','',open?'−':'＋'));render();if(open)reveal($('details-panel'));});
 function accept(next){if(!next?.modules)return;state=next;connected=true;if(!example)try{localStorage.setItem(cacheKey,JSON.stringify(next));}catch{}render();}
-let cameraObjectUrl=null;
-async function cameraLoop(){
-  let delay=80;
-  try {
-    if(document.hidden){delay=1000;return;}
-    const response=await fetch('/api/camera/frame.jpg',{cache:'no-store',signal:AbortSignal.timeout(4500)});
-    if(!response.ok){const data=await response.json().catch(()=>({}));throw new Error(data.error||'Camera unavailable');}
-    const nextUrl=URL.createObjectURL(await response.blob()),image=$('camera-image');
-    const previous=cameraObjectUrl;
-    image.src=nextUrl;cameraObjectUrl=nextUrl;
-    try {await image.decode();}finally{if(previous)URL.revokeObjectURL(previous);}
-    image.hidden=false;$('camera-message').hidden=true;
-    $('camera-status').textContent='LIVE';$('camera-status').classList.add('live');
-  } catch(error) {
-    delay=3000;$('camera-image').hidden=true;$('camera-message').hidden=false;
-    $('camera-message').textContent=error.name==='TimeoutError'?'Camera connection lost':error.message;
-    $('camera-status').textContent='OFFLINE';$('camera-status').classList.remove('live');
-    if(cameraObjectUrl){URL.revokeObjectURL(cameraObjectUrl);cameraObjectUrl=null;}
-  } finally {setTimeout(cameraLoop,delay);}
-}
-$('camera-flip').addEventListener('click',()=>{const flipped=$('camera-image').classList.toggle('flipped');$('camera-flip').setAttribute('aria-pressed',String(flipped));});
-if(example)document.querySelector('.camera-view').hidden=true;else cameraLoop();
 let polling=false;
 async function poll(){if(polling)return;polling=true;try{const r=await fetch('/api/state?view=dashboard',{cache:'no-store',signal:AbortSignal.timeout(8000)});if(!r.ok)throw new Error('unavailable');accept(await r.json());}catch{connected=false;render();}finally{polling=false;}}
 if(example){
