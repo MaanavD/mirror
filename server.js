@@ -32,6 +32,14 @@ const app = express();
 app.disable('x-powered-by');
 app.use(express.json({ limit: '16kb' }));
 
+const MANUAL_DEFAULT_HOLD_SECONDS = 30 * 60;
+const MANUAL_MAX_HOLD_SECONDS = 2 * 60 * 60;
+
+function integerInRange(value, min, max) {
+  const number = Number(value);
+  return Number.isInteger(number) && number >= min && number <= max ? number : null;
+}
+
 // ---------------------------------------------------------------------------
 // API
 // ---------------------------------------------------------------------------
@@ -65,6 +73,32 @@ app.post('/api/display/on', requireDisplayToken(config), async (_req, res) => {
 
 app.post('/api/display/off', requireDisplayToken(config), async (_req, res) => {
   res.json(await display.set(false, { source: 'api' }));
+});
+
+// Human display controls use this endpoint. The presence daemon keeps its
+// automatic writes on /api/display/on|off, so a manual hold cannot be erased
+// by the next sensor loop.
+app.post('/api/display/manual', requireDisplayToken(config), async (req, res) => {
+  const mode = String(req.body?.mode ?? '').toLowerCase();
+  if (!['on', 'off', 'auto'].includes(mode)) {
+    return res.status(400).json({ error: 'mode must be on, off, or auto' });
+  }
+
+  const durationSec = req.body?.duration_s === undefined
+    ? MANUAL_DEFAULT_HOLD_SECONDS
+    : integerInRange(req.body.duration_s, 1, MANUAL_MAX_HOLD_SECONDS);
+  if (durationSec === null) {
+    return res.status(400).json({ error: `duration_s must be an integer from 1 to ${MANUAL_MAX_HOLD_SECONDS}` });
+  }
+
+  let percent;
+  if (req.body?.percent !== undefined) {
+    percent = integerInRange(req.body.percent, 1, 100);
+    if (percent === null) return res.status(400).json({ error: 'percent must be an integer from 1 to 100' });
+    if (mode !== 'on') return res.status(400).json({ error: 'percent requires mode on' });
+  }
+
+  return res.json(await display.manual(mode, { percent, durationSec }));
 });
 
 // Hermy.EXE dialogue: push a short output-only message to the mirror.

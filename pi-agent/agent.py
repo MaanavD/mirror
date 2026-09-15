@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """smart-mirror pi-agent: token-protected backlight power + brightness control.
 Endpoints: POST /display/on, POST /display/off, POST /display/brightness,
-GET /display/status, GET /healthz
+POST /display/manual, GET /display/status, GET /healthz
 Controls PWM backlight (pwmchip0/pwm0) + inverter enable on GPIO17."""
-import json, os, subprocess
+import json, os, subprocess, time
 from pwm_brightness import pwm_settings
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -14,6 +14,11 @@ PERIOD = 40000
 BRIGHT_FILE = "/opt/pi-agent/brightness"
 VOICE_DIR = "/opt/pi-agent/voice"
 DEFAULT_PCT = 20
+OVERRIDE_FILE = "/opt/pi-agent/manual_override.json"
+MANUAL_DEFAULT_SECONDS = 30 * 60
+MANUAL_MAX_SECONDS = 2 * 60 * 60
+_manual_override = None
+_override_loaded = False
 
 def w(path, val):
     with open(path, "w") as f:
@@ -31,6 +36,102 @@ def save_pct(pct):
         w(BRIGHT_FILE, pct)
     except OSError:
         pass
+
+
+def _read_override():
+    try:
+        with open(OVERRIDE_FILE) as f:
+            value = json.load(f)
+        if not isinstance(value, dict) or value.get("mode") not in ("on", "off"):
+            return None
+        expires_at = float(value["expires_at"])
+        if expires_at <= time.time():
+            return None
+        result = {"mode": value["mode"], "expires_at": expires_at}
+        if "percent" in value:
+            result["percent"] = int(value["percent"])
+        return result
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return None
+
+
+def _clear_override():
+    global _manual_override, _override_loaded
+    _manual_override = None
+    _override_loaded = True
+    try:
+        os.unlink(OVERRIDE_FILE)
+    except FileNotFoundError:
+        pass
+    except OSError:
+        pass
+
+
+def _active_override():
+    global _manual_override, _override_loaded
+    if not _override_loaded:
+        _manual_override = _read_override()
+        _override_loaded = True
+    if _manual_override and _manual_override["expires_at"] <= time.time():
+        _clear_override()
+    return _manual_override
+
+
+def _persist_override(override):
+    global _manual_override, _override_loaded
+    temporary = f"{OVERRIDE_FILE}.tmp"
+    with open(temporary, "w") as f:
+        json.dump(override, f)
+    os.replace(temporary, OVERRIDE_FILE)
+    _manual_override = override
+    _override_loaded = True
+
+
+def _integer(value, label):
+    if isinstance(value, bool):
+        raise ValueError(f"{label} must be an integer")
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{label} must be an integer") from None
+    if not number.is_integer():
+        raise ValueError(f"{label} must be an integer")
+    return int(number)
+
+
+def manual_control(payload):
+    mode = str(payload.get("mode", "")).lower()
+    if mode not in ("on", "off", "auto"):
+        raise ValueError("mode must be on, off, or auto")
+    if mode == "auto":
+        if "percent" in payload:
+            raise ValueError("percent requires mode on")
+        _clear_override()
+        return status()
+
+    duration = _integer(payload.get("duration_s", MANUAL_DEFAULT_SECONDS), "duration_s")
+    if not 1 <= duration <= MANUAL_MAX_SECONDS:
+        raise ValueError(f"duration_s must be an integer from 1 to {MANUAL_MAX_SECONDS}")
+
+    percent = None
+    if "percent" in payload:
+        if mode != "on":
+            raise ValueError("percent requires mode on")
+        percent = _integer(payload["percent"], "percent")
+        if not 1 <= percent <= 100:
+            raise ValueError("percent must be an integer from 1 to 100")
+
+    # Apply first. A failed hardware write must not leave a hold behind.
+    if mode == "on":
+        apply_brightness(percent) if percent is not None else display(True)
+    else:
+        display(False)
+
+    override = {"mode": mode, "expires_at": time.time() + duration}
+    if percent is not None:
+        override["percent"] = percent
+    _persist_override(override)
+    return status()
 
 def apply_brightness(pct):
     pct, period, duty = pwm_settings(pct)
@@ -60,9 +161,18 @@ def status():
     try:
         with open(f"{PWM}/enable") as f:
             on = f.read().strip() == "1"
-        return {"on": on, "brightness": saved_pct()}
+        override = _active_override()
+        override_status = None
+        if override:
+            override_status = {
+                "mode": override["mode"],
+                "expiresAt": round(override["expires_at"], 3),
+            }
+            if "percent" in override:
+                override_status["percent"] = override["percent"]
+        return {"on": on, "brightness": saved_pct(), "override": override_status}
     except OSError as e:
-        return {"on": None, "error": str(e)}
+        return {"on": None, "error": str(e), "override": None}
 
 def log_peers():
     """Name the local process talking to us: ss -p shows the client pid for
@@ -103,10 +213,20 @@ class H(BaseHTTPRequestHandler):
         if self.path.startswith("/display/"):
             log_peers()
         try:
+            if self.path == "/display/manual":
+                length = int(self.headers.get("Content-Length", "0"))
+                payload = json.loads(self.rfile.read(length) or b"{}")
+                if not isinstance(payload, dict):
+                    raise ValueError("JSON object required")
+                return self._send(200, manual_control(payload))
             if self.path in ("/display/on", "/display/off"):
+                if _active_override():
+                    return self._send(200, {"ok": True, "ignored": "manual_override", **status()})
                 display(self.path.endswith("/on"))
                 return self._send(200, status())
             if self.path == "/display/brightness":
+                if _active_override():
+                    return self._send(200, {"ok": True, "ignored": "manual_override", **status()})
                 length = int(self.headers.get("Content-Length", "0"))
                 payload = json.loads(self.rfile.read(length) or b"{}")
                 apply_brightness(payload.get("percent", DEFAULT_PCT))

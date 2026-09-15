@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { fetchText } from './http.js';
+import { fetchJson, fetchText } from './http.js';
 import { createLogger } from './logger.js';
 import { localDateKey, localTimeLabel } from './time.js';
 
@@ -68,6 +68,48 @@ export class DisplayController {
       });
       this.#log.info(`pi-agent ${on ? 'on' : 'off'} ok`);
       return { relay: 'ok', agent: body.slice(0, 200) };
+    } catch (err) {
+      this.#log.warn(`pi-agent unreachable (${url}): ${err.message}`);
+      return { relay: 'unreachable', error: err.message };
+    }
+  }
+
+  async manual(mode, { percent, durationSec = 1_800 } = {}) {
+    const payload = { mode, duration_s: durationSec };
+    if (percent !== undefined) payload.percent = percent;
+
+    // Manual commands share this server path, while the presence daemon keeps
+    // using set()/relay(). The Pi agent can therefore hold this state without
+    // treating the daemon's next automatic write as a new manual command.
+    if (mode !== 'auto') this.#store.setDisplay(mode === 'on');
+    this.#log.info(`display ${mode} (${mode === 'auto' ? 'manual release' : 'manual'})`);
+    const result = await this.relayManual(payload);
+    return {
+      ok: true,
+      mode,
+      on: mode === 'auto' ? this.#store.displayOn : mode === 'on',
+      source: 'manual',
+      ...result,
+    };
+  }
+
+  async relayManual(payload) {
+    const { piAgentUrl, piAgentToken, relayTimeoutMs } = this.#config.display;
+    if (this.#config.mock) return { relay: 'mock' };
+    if (!piAgentUrl) return { relay: 'disabled' };
+    const url = `${piAgentUrl}/display/manual`;
+    try {
+      const agent = await fetchJson(url, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(piAgentToken ? { authorization: `Bearer ${piAgentToken}` } : {}),
+        },
+        body: JSON.stringify(payload),
+        timeoutMs: relayTimeoutMs,
+      });
+      this.#log.info(`pi-agent manual ${payload.mode} ok`);
+      return { relay: 'ok', agent };
     } catch (err) {
       this.#log.warn(`pi-agent unreachable (${url}): ${err.message}`);
       return { relay: 'unreachable', error: err.message };

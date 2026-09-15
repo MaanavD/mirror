@@ -30,6 +30,7 @@ I2C_DEVICE = os.environ.get("BH1750_DEVICE", "/dev/i2c-1")
 I2C_ADDRESS = int(os.environ.get("BH1750_ADDRESS", "0x23"), 0)
 
 POLL_SECONDS = max(0.25, float(os.environ.get("CONTROLLER_POLL_SECONDS", "0.25")))
+MANUAL_OVERRIDE_POLL_SECONDS = 1.0
 SENSOR_PUSH_SECONDS = max(1.0, float(os.environ.get("SENSOR_PUSH_SECONDS", "2")))
 ABSENCE_OFF_SECONDS = max(0.0, float(os.environ.get("ABSENCE_OFF_SECONDS", "60")))
 PRESENCE_REFRESH_SECONDS = max(10.0, float(os.environ.get("PRESENCE_REFRESH_SECONDS", "45")))
@@ -171,6 +172,8 @@ class Controller:
         self.last_light_report_at = 0.0
         self.last_action_error_at = 0.0
         self.last_error = None
+        self.manual_override = None
+        self.last_override_poll = None
 
     def snapshot(self) -> dict:
         with self.lock:
@@ -181,6 +184,7 @@ class Controller:
                 "target": self.target_percent,
                 "brightnessSource": self.brightness_source,
                 "on": self.display_on,
+                "manualOverride": dict(self.manual_override) if self.manual_override else None,
                 "quiet": in_quiet_hours(),
                 "lastError": self.last_error,
             }
@@ -202,6 +206,45 @@ class Controller:
         if not AGENT_TOKEN:
             raise RuntimeError("AGENT_TOKEN is not configured")
         return post_json(AGENT_URL, AGENT_TOKEN, path, payload)
+
+    def _agent_status(self) -> dict:
+        if not AGENT_TOKEN:
+            raise RuntimeError("AGENT_TOKEN is not configured")
+        request = urllib.request.Request(
+            f"{AGENT_URL}/display/status",
+            headers={"Authorization": f"Bearer {AGENT_TOKEN}"},
+        )
+        with urllib.request.urlopen(request, timeout=3) as response:
+            value = json.loads(response.read(4096) or b"{}")
+        if not isinstance(value, dict):
+            raise ValueError("expected agent status object")
+        return value
+
+    def _refresh_manual_override(self, now: float) -> None:
+        if not AGENT_TOKEN:
+            return
+        with self.lock:
+            if (self.last_override_poll is not None
+                    and now - self.last_override_poll < MANUAL_OVERRIDE_POLL_SECONDS):
+                return
+            self.last_override_poll = now
+        try:
+            remote = self._agent_status()
+            override = remote.get("override")
+            if override is not None and not isinstance(override, dict):
+                raise ValueError("invalid manual override status")
+            on = remote.get("on")
+            brightness = remote.get("brightness")
+            with self.lock:
+                self.manual_override = dict(override) if override else None
+                if isinstance(on, bool):
+                    self.display_on = on
+                    if on and isinstance(brightness, (int, float)):
+                        self.current_percent = int(brightness)
+                    elif not on:
+                        self.current_percent = 0
+        except Exception as exc:
+            self._record_error(f"backlight status failed: {exc}")
 
     def _mirror(self, path: str, payload: dict | None = None) -> dict:
         if not MIRROR_URL or not MIRROR_TOKEN:
@@ -370,7 +413,13 @@ class Controller:
         )
         # The previous boot initializer turns the inverter on. Make the daemon's
         # state authoritative immediately, then wake again if presence is high.
-        self._sync_display(False)
+        self._refresh_manual_override(time.monotonic())
+        with self.lock:
+            manual_override = self.manual_override
+        if manual_override:
+            log(f"manual display hold active: {manual_override.get('mode', 'unknown')}")
+        else:
+            self._sync_display(False)
         while not self.stop.is_set():
             now = time.monotonic()
             try:
@@ -406,10 +455,14 @@ class Controller:
                     self.last_sensor_push = now
                     self._push_sensor_snapshot()
 
-                target = self._brightness_target(lux)
+                self._refresh_manual_override(time.monotonic())
                 with self.lock:
-                    self.target_percent = target
-                self._update_display(time.monotonic(), present, target)
+                    manual_override = self.manual_override
+                if manual_override is None:
+                    target = self._brightness_target(lux)
+                    with self.lock:
+                        self.target_percent = target
+                    self._update_display(time.monotonic(), present is True, target)
                 # Keep the dashboard's optional presence cue after hardware wake.
                 if present and now - self.last_presence_push >= PRESENCE_REFRESH_SECONDS:
                     self._push_presence()
