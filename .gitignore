@@ -22,3 +22,11 @@ npm-debug.log*
 .DS_Store
 
 node_modules
+pi-agent/__pycache__/
+pi-agent/diag.html
+pi-agent/next-step.txt
+pi-agent/radar.py
+pi-agent/radar_tune.py
+pi-agent/raw_dump.py
+pi-agent/sensor_status.py
+public/shots/
