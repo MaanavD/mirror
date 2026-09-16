@@ -22,6 +22,77 @@ export function localInstant(day, hour, zone, minute = 0) {
   return value;
 }
 const previousDay=day=>new Date(Date.parse(day+'T12:00:00Z')-86400000).toISOString().slice(0,10);
+const nextDay=day=>new Date(Date.parse(day+'T12:00:00Z')+86400000).toISOString().slice(0,10);
+
+const SLEEP_CUTOFFS = [
+  { id:'caffeine', label:'Caffeine', icon:'◒', offsetMinutes:10*60, untilOffsetMinutes:8*60, rule:'8-10h before sleep' },
+  { id:'exercise', label:'Exercise done by', icon:'✦', offsetMinutes:4*60, rule:'finish 4-6h before sleep' },
+  { id:'food', label:'Eating done by', icon:'◈', offsetMinutes:4*60, rule:'finish 4h before sleep' },
+  { id:'blue-light', label:'Blue light off', icon:'☼', offsetMinutes:2*60, rule:'avoid for the last 2h' },
+  { id:'screens', label:'Screens off', icon:'▣', offsetMinutes:60, rule:'screens off 1h before sleep' },
+];
+const NON_MEETING = /\b(?:workout|gym|lift|strength training|weight training|cardio|yoga|pilates|run(?:ning)?|zone\s*2|bouldering|climb(?:ing)?|dance(?:\s+practice)?|laundry|shower|drive|commute|walk|breakfast|lunch|dinner|appointment|reservation|errand|sleep|bed|mirror work)\b/i;
+
+function likelyMeeting(event) {
+  return Boolean(event && !event.allDay && event.busy !== false
+    && Number.isFinite(instant(event.start)) && !NON_MEETING.test(String(event.title ?? '').trim()));
+}
+
+export function firstMeetingTomorrow(calendarEntry, now=Date.now(), zone='America/Los_Angeles') {
+  const data=calendarEntry?.data ?? calendarEntry;
+  if(!data || data.configured===false || data.coverageComplete===false) return null;
+  const tomorrow=nextDay(dateKey(now,zone));
+  return allEvents(data)
+    .filter(event=>dateKey(instant(event.start),zone)===tomorrow && likelyMeeting(event))
+    .sort((a,b)=>instant(a.start)-instant(b.start))[0] ?? null;
+}
+
+// Eight Sleep "last night" stats only describe the night just finished. They
+// are useful right after waking; by evening the same-day plan matters more, so
+// the mirror swaps them out once the next cutoff is still hours away.
+function nightField(now,zone,sleepAt) {
+  const firstCutoffAt=Math.min(...SLEEP_CUTOFFS.map(d=>sleepAt-d.offsetMinutes*MINUTE));
+  // Morning with the first cutoff still ≥4h out → show last-night stats.
+  if(now>=sleepAt&&now<firstCutoffAt-4*60*MINUTE)return true;
+  // Tight night (cutoff passed but we only just woke) → still show them.
+  if(now<firstCutoffAt&&now-sleepAt>=0&&now-sleepAt<3*60*MINUTE)return true;
+  return false;
+}
+
+export function sleepPlanFor(calendarEntry, now=Date.now(), zone='America/Los_Angeles', night=null) {
+  const calendarReady=fresh(calendarEntry,'calendar',now)
+    && calendarEntry?.data?.configured!==false
+    && calendarEntry?.data?.coverageComplete!==false;
+  const meeting=calendarReady ? firstMeetingTomorrow(calendarEntry,now,zone) : null;
+  const tomorrow=nextDay(dateKey(now,zone));
+  const sleepAt=meeting
+    ? instant(meeting.start)-8.5*60*MINUTE
+    : localInstant(tomorrow,0,zone,30);
+  if(!Number.isFinite(sleepAt)) return null;
+  const cutoffs=SLEEP_CUTOFFS.map(definition=>({
+    ...definition,
+    at:sleepAt-definition.offsetMinutes*MINUTE,
+    atEnd:definition.untilOffsetMinutes!=null?sleepAt-definition.untilOffsetMinutes*MINUTE:null,
+    past:sleepAt-definition.offsetMinutes*MINUTE<now,
+  }));
+  // Ranges (caffeine 8-10h) stay relevant between their two ends; passed-only
+  // cutoffs stay relevant until the next cutoff arrives, so an already-done
+  // routine doesn't flash on the mirror at 8pm for a midnight bedtime.
+  // Next cutoff: the earliest deadline still ahead — a range counts while
+  // now is inside it, and past-only cutoffs hand off to the next deadline.
+  const nextCutoff=cutoffs.find(cutoff=>cutoff.at>=now||(cutoff.atEnd!=null&&now<cutoff.atEnd)) ?? null;
+  const field=nightField(now,zone,sleepAt)?night??null:null;
+  return {
+    sleepAt,
+    sleepLabel:timeLabel(sleepAt,zone),
+    calendarReady,
+    meeting:meeting ? { title:meeting.title, at:instant(meeting.start) } : null,
+    basis:meeting ? `First meeting ${timeLabel(instant(meeting.start),zone)}` : calendarReady ? 'No meeting tomorrow' : 'Calendar unavailable',
+    cutoffs,
+    nextCutoff:nextCutoff ?? null,
+    night:field,
+  };
+}
 
 export function isWorkoutEvent(event) {
   if(event?.kind==='workout'||event?.type==='workout')return true;
@@ -75,7 +146,11 @@ export function wakingWindow(entry, now, zone) {
 
 export function timelineFor(state, now=Date.now()) {
   const m=state?.modules??{},zone=m.calendar?.data?.timeZone??'America/Los_Angeles';
-  const window=wakingWindow(m.wellness,now,zone);
+  const plan=sleepPlanFor(m.calendar,now,zone);
+  const base=wakingWindow(m.wellness,now,zone);
+  const window=plan&&plan.sleepAt>base.start
+    ? {...base,end:plan.sleepAt,sleepLabel:'Sleep',source:plan.meeting?`Sleep ${plan.sleepLabel} · ${plan.basis}`:`${plan.basis} · sleep ${plan.sleepLabel}`}
+    : base;
   const calendarReady=fresh(m.calendar,'calendar',now)&&m.calendar.data?.configured!==false&&m.calendar.data?.coverageComplete!==false;
   const events=calendarReady?allEvents(m.calendar.data).filter(e=>!e.allDay&&e.busy!==false&&e.transparency!=='transparent')
     .map(e=>({...e,start:Math.max(window.start,instant(e.start)),end:Math.min(window.end,instant(e.end))}))

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {lightingFor,localInstant,wakingWindow,timelineFor,prioritiesFor,comfortFor,briefFor,focusTasks,showTimeline,isWorkoutEvent} from '../public/day-model.js';
+import {lightingFor,localInstant,wakingWindow,timelineFor,prioritiesFor,comfortFor,briefFor,focusTasks,showTimeline,isWorkoutEvent,sleepPlanFor,firstMeetingTomorrow} from '../public/day-model.js';
 import {taskRecords,pickProperties} from '../src/modules/notion.js';
 import {shapeAgenda} from '../src/modules/calendar.js';
 const zone='America/Los_Angeles',now=Date.parse('2026-09-06T18:00:00Z');
@@ -13,10 +13,79 @@ test('civil conversion follows DST and midnight rollover',()=>{
  assert.equal(new Date(localInstant('2026-11-01',8,zone)).toISOString(),'2026-11-01T16:00:00.000Z');
  assert.equal(new Date(localInstant('2026-09-06',24,zone)).toISOString(),'2026-09-07T07:00:00.000Z');
 });
+
+test('sleep plan uses the first useful meeting tomorrow, not a dance event',()=>{
+ const sleepMeeting={id:'meeting',title:'Standup',allDay:false,start:new Date(localInstant('2026-09-07',9,zone)).toISOString(),end:new Date(localInstant('2026-09-07',10,zone)).toISOString(),busy:true};
+ const dance={id:'dance',title:'Raj Dance practice',allDay:false,start:new Date(localInstant('2026-09-07',17,zone)).toISOString(),end:new Date(localInstant('2026-09-07',18,zone)).toISOString(),busy:true};
+ const calendar=entry({configured:true,timeZone:zone,events:[dance,sleepMeeting]});
+ assert.equal(firstMeetingTomorrow(calendar,now,zone).title,'Standup');
+ const plan=sleepPlanFor(calendar,now,zone);
+ assert.equal(plan.sleepLabel,'12:30 AM');
+ assert.equal(plan.meeting.title,'Standup');
+ assert.deepEqual(plan.cutoffs.map(c=>[c.id,c.at]),[
+  ['caffeine',localInstant('2026-09-06',14,zone,30)],
+  ['exercise',localInstant('2026-09-06',20,zone,30)],
+  ['food',localInstant('2026-09-06',20,zone,30)],
+  ['blue-light',localInstant('2026-09-06',22,zone,30)],
+  ['screens',localInstant('2026-09-06',23,zone,30)],
+ ]);
+});
+
+test('caffeine renders as a window until 8h before sleep',()=>{
+ const plan=sleepPlanFor(entry({configured:true,timeZone:zone,events:[]}),now,zone);
+ const caffeine=plan.cutoffs.find(c=>c.id==='caffeine');
+ assert.equal(caffeine.at,localInstant('2026-09-06',14,zone,30));
+ assert.equal(caffeine.atEnd,localInstant('2026-09-06',16,zone,30));
+ // 3:00 PM is inside the window, so caffeine is nextCutoff then.
+ const inside=Date.parse('2026-09-06T22:00:00Z');
+ assert.equal(sleepPlanFor(entry({configured:true,timeZone:zone,events:[]}),inside,zone).nextCutoff.id,'caffeine');
+ // 9:15 PM: caffeine range over, blue-light (10:30PM) is next.
+ const late=Date.parse('2026-09-07T04:15:00Z');
+ assert.equal(sleepPlanFor(entry({configured:true,timeZone:zone,events:[]}),late,zone).nextCutoff.id,'blue-light');
+});
+
+test('last-night stats only render during the morning window',()=>{
+ const calendar=entry({configured:true,timeZone:zone,events:[]});
+ // 9 PM, bedtime 12:30 AM: cutoffs are the live info, night stats are done.
+ assert.deepEqual(sleepPlanFor(calendar,now,zone,{durationHours:6.5}).night,null);
+});
+
+test('sleep plan uses the first useful meeting tomorrow, not a dance event',()=>{
+ const sleepMeeting={id:'meeting',title:'Standup',allDay:false,start:new Date(localInstant('2026-09-07',9,zone)).toISOString(),end:new Date(localInstant('2026-09-07',10,zone)).toISOString(),busy:true};
+ const dance={id:'dance',title:'Raj Dance practice',allDay:false,start:new Date(localInstant('2026-09-07',17,zone)).toISOString(),end:new Date(localInstant('2026-09-07',18,zone)).toISOString(),busy:true};
+ const calendar=entry({configured:true,timeZone:zone,events:[dance,sleepMeeting]});
+ assert.equal(firstMeetingTomorrow(calendar,now,zone).title,'Standup');
+ const plan=sleepPlanFor(calendar,now,zone);
+ assert.equal(plan.sleepLabel,'12:30 AM');
+ assert.equal(plan.meeting.title,'Standup');
+ assert.deepEqual(plan.cutoffs.map(c=>[c.id,c.at]),[
+  ['caffeine',localInstant('2026-09-06',14,zone,30)],
+  ['exercise',localInstant('2026-09-06',20,zone,30)],
+  ['food',localInstant('2026-09-06',20,zone,30)],
+  ['blue-light',localInstant('2026-09-06',22,zone,30)],
+  ['screens',localInstant('2026-09-06',23,zone,30)],
+ ]);
+});
+
+test('sleep plan falls back to 12:30 AM when tomorrow has no meeting',()=>{
+ const dance={id:'dance',title:'Dance practice',allDay:false,start:new Date(localInstant('2026-09-07',17,zone)).toISOString(),end:new Date(localInstant('2026-09-07',18,zone)).toISOString(),busy:true};
+ const plan=sleepPlanFor(entry({configured:true,timeZone:zone,events:[dance]}),now,zone);
+ assert.equal(plan.meeting,null);
+ assert.equal(plan.sleepLabel,'12:30 AM');
+ assert.equal(plan.basis,'No meeting tomorrow');
+});
+
+test('stale calendar uses the fallback and names the unavailable source',()=>{
+ const calendar=entry({configured:true,timeZone:zone,events:[]});calendar.stale=true;
+ const plan=sleepPlanFor(calendar,now,zone);
+ assert.equal(plan.calendarReady,false);
+ assert.equal(plan.sleepLabel,'12:30 AM');
+ assert.equal(plan.basis,'Calendar unavailable');
+});
 test('timeline merges overlap, clips waking window, ignores free and all-day events',()=>{
  const t=timelineFor(state([event('early',7,9),event('a',10,12),event('b',11,13),event('free',14,16,{busy:false}),event('day',8,23,{allDay:true})]),now);
  assert.deepEqual(t.busy.map(b=>[b.start,b.end]),[[Date.parse(at(8)),Date.parse(at(9))],[Date.parse(at(10)),Date.parse(at(13))]]);
- assert.equal(t.nextGap.start,Date.parse(at(13)));assert.equal(t.nextGap.end,Date.parse(at(23)));
+ assert.equal(t.nextGap.start,Date.parse(at(13)));assert.equal(t.nextGap.end,localInstant('2026-09-07',0,zone,30));
 });
 test('partial or stale calendar never claims free time',()=>{
  for(const stale of [true,false]){const s=state([]);s.modules.calendar.stale=stale;s.modules.calendar.data.coverageComplete=stale;

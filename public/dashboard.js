@@ -1,5 +1,5 @@
-import { fresh, ageLabel, dateKey, timeLabel, instant, agendaFor, tasksFor, horizonFor, buildAttention, sunlightFor, MINUTE } from './attention.js?v=9';
-import {lightingFor, localInstant, timelineFor, showTimeline, focusTasks, comfortFor, briefFor} from './day-model.js?v=9';
+import { fresh, ageLabel, dateKey, timeLabel, instant, agendaFor, tasksFor, horizonFor, buildAttention, sunlightFor, MINUTE } from './attention.js?v=10';
+import {lightingFor, localInstant, timelineFor, showTimeline, focusTasks, comfortFor, briefFor, sleepPlanFor} from './day-model.js?v=11';
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -160,24 +160,48 @@ function renderHorizon(m, now) {
   });
 }
 function renderSleep(m,now,zone) {
-  const entry=m.wellness,w=fresh(entry,'wellness',now)?entry.data?.dayWindow:null;
-  replace('sleep-line',[w,Math.floor(now/MINUTE)],()=>{
+  const entry=m.wellness,w=fresh(entry,'wellness',now)?entry.data?.dayWindow:null,plan=sleepPlanFor(m.calendar,now,zone,w?.lastNight);
+  replace('sleep-line',[w,plan,Math.floor(now/MINUTE)],()=>{
     const line=$('sleep-line');
     const item=(label,value)=>{const n=el('span','sleep-item');n.append(el('span','sleep-label',label),el('span','sleep-value',value));return n;};
     const rows=[];
-    const night=w?.lastNight;
-    if(w&&night){
+    const night=w?.lastNight,showNight=plan?.night!==null&&(w&&night);
+    if(showNight){
       rows.push(item('Last night',Number.isFinite(night.durationHours)?`${night.durationHours} h`:'duration unavailable'));
       const wake=instant(night.wakeAt);
       if(Number.isFinite(wake))rows.push(item('Woke',timeLabel(wake,zone)));
       if(Number.isFinite(night.score))rows.push(item('Score',String(night.score)));
-    }else{
+    }else if(!(w&&night)){
       // A stale, incomplete or absent night is named as missing, not zeroed.
+      // (Evening with a recorded night shows nothing here — it's old news.)
       rows.push(item('Sleep',w?'Last night not recorded':'Sleep data unavailable'));
     }
-    if(Number.isFinite(w?.sleepTargetMinutes))rows.push(item('Bed',`${w.sleepTargetClock} target`));
+    if(plan) {
+      rows.push(item('Tonight',plan.sleepLabel));
+      // "First meeting" already renders in the cutoffs basis and the Tomorrow
+      // card; a third copy here is the repeat Maanav flagged.
+    }
     line.classList.toggle('missing',!w||!night);
     return rows;
+  });
+}
+function renderSleepCutoffs(m,now,zone) {
+  const plan=sleepPlanFor(m.calendar,now,zone),night=fresh(m.wellness,'wellness',now)?m.wellness.data?.dayWindow?.lastNight:null;
+  replace('sleep-cutoffs',plan,()=>{
+    if(!plan)return [];
+    const heading=el('div','sleep-cutoffs-heading');
+    heading.append(el('span','sleep-cutoffs-title','Sleep cutoffs'),el('span','sleep-cutoffs-sleep',`Sleep ${plan.sleepLabel}`));
+    const basis=el('p','sleep-cutoffs-basis',plan.meeting?`${plan.basis} · ${plan.meeting.title}`:plan.basis);
+    const grid=el('div','sleep-cutoff-grid');
+    const rows=plan.cutoffs.map(cutoff=>{
+      const row=el('div',`sleep-cutoff${cutoff.past?' past':''}${plan.nextCutoff?.id===cutoff.id?' next':''}`);
+      row.setAttribute('aria-label',`${cutoff.label} ${cutoff.atEnd!=null?timeLabel(cutoff.at,zone)+'-'+timeLabel(cutoff.atEnd,zone):timeLabel(cutoff.at,zone)} · ${cutoff.rule}`);
+      // Caffeine is a window, not a deadline: "1:30PM-3:30PM".
+      row.append(el('span','sleep-cutoff-label',cutoff.label),el('span','sleep-cutoff-time',cutoff.atEnd!=null?`${timeLabel(cutoff.at,zone)}-${timeLabel(cutoff.atEnd,zone)}`:timeLabel(cutoff.at,zone)));
+      return row;
+    });
+    grid.append(...rows);
+    return [heading,basis,grid];
   });
 }
 function renderDetails(m,now) {
@@ -186,7 +210,7 @@ function renderDetails(m,now) {
     const blocks=[];
     const block=(title,lines,note)=>{const b=el('div','detail-block');b.append(el('h3','',title),...lines.map(v=>el('p','',v)));if(note)b.append(el('p','source-note',note));blocks.push(b);return b;};
     const wellness=fresh(m.wellness,'wellness',now)?m.wellness.data:null;
-    const window=wellness?.dayWindow,night=window?.lastNight;
+    const window=wellness?.dayWindow,night=window?.lastNight,plan=sleepPlanFor(m.calendar,now,m.calendar?.data?.timeZone??'America/Los_Angeles');
     const sleepLines=[];
     if(night){
       sleepLines.push(`Last night ${Number.isFinite(night.durationHours)?`${night.durationHours} h`:'duration unavailable'}${Number.isFinite(night.score)?` · score ${night.score}`:''}`);
@@ -197,7 +221,11 @@ function renderDetails(m,now) {
       const averages=[Number.isFinite(wellness?.score)?`Sleep score ${wellness.score}`:null,Number.isFinite(wellness?.hrv)?`HRV ${wellness.hrv}`:null].filter(Boolean);
       sleepLines.push(`${averages.join(' · ')} · ${wellness?.nights?`${wellness.nights}-night average`:'multi-night average'}`);
     }
-    if(Number.isFinite(window?.sleepTargetMinutes))sleepLines.push(`Bed ${window.sleepTargetClock} target (${window.sleepTargetSource})`);
+    if(plan){
+      sleepLines.push(`Sleep ${plan.sleepLabel}`);
+      sleepLines.push(plan.meeting?`${plan.basis}: ${plan.meeting.title}`:plan.basis);
+      for(const cutoff of plan.cutoffs)sleepLines.push(`${cutoff.label} ${timeLabel(cutoff.at,m.calendar?.data?.timeZone??'America/Los_Angeles')} · ${cutoff.rule}`);
+    }
     block('Sleep',sleepLines,noteFor('wellness',now));
     const music=fresh(m.spotify,'spotify',now)?m.spotify.data:null;
     block('Listening',music?.isPlaying&&music.track?[music.track.name,(music.track.artists??[]).join(', ')]:['Nothing playing right now.']);
@@ -225,12 +253,23 @@ function renderLighting(m,now) {
 function renderTimeline(now) {
   document.querySelector('.day-timeline').hidden=!showTimeline(state,now);
   if(!showTimeline(state,now))return;
-  const t=timelineFor(state,now),length=t.end-t.start;
+  const t=timelineFor(state,now),plan=sleepPlanFor(state?.modules?.calendar,now,t.zone),length=t.end-t.start;
   $('timeline-source').textContent=t.source;
-  replace('timeline-body',[t.start,t.end,t.busy,t.calendarReady,Math.floor(now/MINUTE)],()=>{
+  replace('timeline-body',[t.start,t.end,t.busy,t.calendarReady,plan,Math.floor(now/MINUTE)],()=>{
     const ends=el('div','timeline-ends');ends.append(el('span','',`${t.wakeLabel} ${timeLabel(t.start,t.zone)}`),el('span','',`${t.sleepLabel} ${timeLabel(t.end,t.zone)}`));
     const bar=el('div','timeline-track');bar.setAttribute('role','img');bar.setAttribute('aria-label',t.calendarReady?`${t.busy.length} scheduled blocks between ${timeLabel(t.start,t.zone)} and ${timeLabel(t.end,t.zone)}`:'Calendar unavailable; gaps cannot be determined');
     for(const b of t.busy){const segment=el('span','timeline-busy');segment.style.left=`${(b.start-t.start)/length*100}%`;segment.style.width=`${(b.end-b.start)/length*100}%`;segment.title=`${b.titles.join(' · ')} · ${timeLabel(b.start,t.zone)}–${timeLabel(b.end,t.zone)}`;bar.append(segment);}
+    const cutoffGroups=new Map();
+    for(const cutoff of plan?.cutoffs??[]){
+      if(cutoff.at<t.start||cutoff.at>t.end)continue;
+      const group=cutoffGroups.get(cutoff.at)??[];group.push(cutoff);cutoffGroups.set(cutoff.at,group);
+    }
+    for(const group of cutoffGroups.values()){
+      const at=group[0].at,marker=el('span',`timeline-cutoff${group.some(c=>c.past)?' past':''}${group.some(c=>plan.nextCutoff?.id===c.id)?' next':''}`,group.map(c=>c.icon).join(''));
+      marker.style.left=`${(at-t.start)/length*100}%`;
+      marker.title=group.map(c=>`${c.label} ${timeLabel(c.at,t.zone)} · ${c.rule}`).join(' · ');
+      marker.setAttribute('aria-label',marker.title);bar.append(marker);
+    }
     if(now>=t.start&&now<=t.end){const marker=el('span','timeline-now');marker.style.left=`${t.nowFraction*100}%`;bar.append(marker);}
     const note=el('p','timeline-gap');
     if(!t.calendarReady)note.textContent='Calendar unavailable · gaps not shown';
@@ -311,7 +350,7 @@ function render() {
   renderLighting(m,now);
   document.body.classList.toggle('soft-off',mirror&&!preview&&!example&&state?.display?.on===false);
   $('day-note').textContent=model.current?'A little focus, right here.':model.next?`Next on your calendar at ${timeLabel(instant(model.next.start),model.timeZone)}.`:'A little room to think.';
-  renderTimeline(now);renderAgents(m,now);renderProgress(m,now);renderMusic(m,now);renderWeather(m,now,model.timeZone);renderAttention(model,now);renderAgenda(m,model,now);renderTasks(m,now);renderHorizon(m,now);renderSleep(m,now,model.timeZone);renderDetails(m,now);
+  renderTimeline(now);renderAgents(m,now);renderProgress(m,now);renderMusic(m,now);renderWeather(m,now,model.timeZone);renderAttention(model,now);renderAgenda(m,model,now);renderTasks(m,now);renderHorizon(m,now);renderSleep(m,now,model.timeZone);renderSleepCutoffs(m,now,model.timeZone);renderDetails(m,now);
   document.querySelector('.hermy-note').classList.toggle('speaking',spoken?.until>Date.now()||example==='talking');
   const quote=fresh(m.quote,'quote',now)?m.quote.data:null;
   $('hermy-note').textContent=spoken?.until>Date.now()?spoken.text:example==='talking'?'Let’s take it one thing at a time.':quote?.text??'You don’t have to do it all at once. Give the next small thing your attention.';
