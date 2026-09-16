@@ -23,7 +23,7 @@ test('sleep plan uses the first useful meeting tomorrow, not a dance event',()=>
  assert.equal(plan.sleepLabel,'12:30 AM');
  assert.equal(plan.meeting.title,'Standup');
  assert.deepEqual(plan.cutoffs.map(c=>[c.id,c.at]),[
-  ['caffeine',localInstant('2026-09-06',14,zone,30)],
+  ['caffeine',localInstant('2026-09-06',12,zone,30)],
   ['exercise',localInstant('2026-09-06',20,zone,30)],
   ['food',localInstant('2026-09-06',20,zone,30)],
   ['blue-light',localInstant('2026-09-06',22,zone,30)],
@@ -31,13 +31,13 @@ test('sleep plan uses the first useful meeting tomorrow, not a dance event',()=>
  ]);
 });
 
-test('caffeine renders as a window until 8h before sleep',()=>{
+test('caffeine renders as a window until 10h before sleep',()=>{
  const plan=sleepPlanFor(entry({configured:true,timeZone:zone,events:[]}),now,zone);
  const caffeine=plan.cutoffs.find(c=>c.id==='caffeine');
- assert.equal(caffeine.at,localInstant('2026-09-06',14,zone,30));
- assert.equal(caffeine.atEnd,localInstant('2026-09-06',16,zone,30));
- // 3:00 PM is inside the window, so caffeine is nextCutoff then.
- const inside=Date.parse('2026-09-06T22:00:00Z');
+ assert.equal(caffeine.at,localInstant('2026-09-06',12,zone,30));
+ assert.equal(caffeine.atEnd,localInstant('2026-09-06',14,zone,30));
+ // 1:30 PM is inside the window, so caffeine is nextCutoff then.
+ const inside=Date.parse('2026-09-06T20:30:00Z');
  assert.equal(sleepPlanFor(entry({configured:true,timeZone:zone,events:[]}),inside,zone).nextCutoff.id,'caffeine');
  // 9:15 PM: caffeine range over, blue-light (10:30PM) is next.
  const late=Date.parse('2026-09-07T04:15:00Z');
@@ -59,7 +59,7 @@ test('sleep plan uses the first useful meeting tomorrow, not a dance event',()=>
  assert.equal(plan.sleepLabel,'12:30 AM');
  assert.equal(plan.meeting.title,'Standup');
  assert.deepEqual(plan.cutoffs.map(c=>[c.id,c.at]),[
-  ['caffeine',localInstant('2026-09-06',14,zone,30)],
+  ['caffeine',localInstant('2026-09-06',12,zone,30)],
   ['exercise',localInstant('2026-09-06',20,zone,30)],
   ['food',localInstant('2026-09-06',20,zone,30)],
   ['blue-light',localInstant('2026-09-06',22,zone,30)],

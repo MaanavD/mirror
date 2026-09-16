@@ -430,12 +430,18 @@ test('the dashboard renders an always-visible sleep line outside the Around you 
   const masthead = html.indexOf('class="masthead"');
   const lights = html.indexOf('id="room-lights"');
   const sleep = html.indexOf('id="sleep-line"');
+  const cutoffs = html.indexOf('id="sleep-cutoffs"');
   const timeline = html.indexOf('class="day-timeline"');
   const details = html.indexOf('id="details-panel"');
   assert.ok(masthead < lights && lights < sleep && sleep < timeline, 'the sleep line must sit in the masthead');
   assert.ok(sleep < details, 'the sleep line is not inside the Around you panel');
+  assert.ok(cutoffs < timeline, 'the cutoff block stays before the day bar in the document');
   assert.match(app, /renderSleep\(m,now,model\.timeZone\)/);
   assert.match(app, /replace\('sleep-line'/);
   assert.match(app, /\$\('sleep-line'\)/);
+  assert.match(app, /sleepPlanFor\(state\?\.modules\?\.calendar/);
+  assert.match(app, /timeline-cutoff/);
   assert.match(css, /\.sleep-line\s*\{[\s\S]*?display:\s*flex/);
+  assert.match(css, /\.mirror\s+#sleep-cutoffs\s*\{\s*display:\s*none/);
+  assert.match(css, /\.mirror\s+\.day-timeline\s*\{[\s\S]*?display:\s*block/);
 });

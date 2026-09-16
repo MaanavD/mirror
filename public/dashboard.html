@@ -5,7 +5,7 @@
   <meta name="color-scheme" content="dark"><title>Today · Hermy</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 4h16v16H4zM8 12h8' fill='none' stroke='%239ce1db' stroke-width='2'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/dashboard.css?v=9">
+  <link rel="stylesheet" href="/dashboard.css?v=13">
 </head>
 <body>
   <div class="example-bar" id="example-bar" hidden>Example scenario · sample data</div>
@@ -16,6 +16,7 @@
       <p class="date" id="date"></p>
       <div id="room-lights" class="room-lights" role="group" aria-label="Nanoleaf lights. Linger or focus for brightness." tabindex="0"></div>
       <div id="sleep-line" class="sleep-line" role="group" aria-label="Sleep summary"></div>
+      <div id="sleep-cutoffs" class="sleep-cutoffs" aria-label="Sleep cutoffs"></div>
       <div class="day-marker"><span></span><p id="day-note">A little room to think.</p></div>
     </section>
 
@@ -53,5 +54,5 @@
     <section id="details-panel" class="details" aria-label="More context" hidden></section>
   </main>
   <div class="toast" id="toast" role="status" hidden></div>
-  <script type="module" src="/dashboard.js?v=9"></script>
+  <script type="module" src="/dashboard.js?v=11"></script>
 </body></html>

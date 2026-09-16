@@ -25,7 +25,7 @@ const previousDay=day=>new Date(Date.parse(day+'T12:00:00Z')-86400000).toISOStri
 const nextDay=day=>new Date(Date.parse(day+'T12:00:00Z')+86400000).toISOString().slice(0,10);
 
 const SLEEP_CUTOFFS = [
-  { id:'caffeine', label:'Caffeine', icon:'◒', offsetMinutes:10*60, untilOffsetMinutes:8*60, rule:'8-10h before sleep' },
+  { id:'caffeine', label:'Caffeine', icon:'◒', offsetMinutes:12*60, untilOffsetMinutes:10*60, rule:'10-12h before sleep' },
   { id:'exercise', label:'Exercise done by', icon:'✦', offsetMinutes:4*60, rule:'finish 4-6h before sleep' },
   { id:'food', label:'Eating done by', icon:'◈', offsetMinutes:4*60, rule:'finish 4h before sleep' },
   { id:'blue-light', label:'Blue light off', icon:'☼', offsetMinutes:2*60, rule:'avoid for the last 2h' },
