@@ -1,13 +1,15 @@
 """Replay presence traces through the actual controller loop without GPIO/HTTP."""
 import unittest
+from datetime import datetime, timedelta
 from unittest.mock import patch
 import backlight_controller as module
 
 
 class PresenceTransitions(unittest.TestCase):
-    def replay(self, samples, *, initially_on=False, target=20):
+    def replay(self, samples, *, initially_on=False, target=20, sleep_entry=None):
         clock = [100.0]
         controller = module.Controller()
+        controller.sleep_entry = sleep_entry
         records = []
         controller.current_percent = target if initially_on else 0
         controller.display_on = initially_on
@@ -91,6 +93,34 @@ class PresenceTransitions(unittest.TestCase):
         controller, records = self.replay([True] * 8, target=1)
         self.assertEqual(controller.current_percent, 1)
         self.assertTrue(all(value <= 1 for _, _, value in records))
+
+    def test_alarm_sleep_window_blocks_presence_wake(self):
+        now = datetime.now().astimezone()
+        wake = now + timedelta(hours=1)
+        hour = wake.hour % 12 or 12
+        suffix = 'P' if wake.hour >= 12 else 'A'
+        entry = {
+            'stale': False,
+            'data': {
+                'alarm': f'{hour}:{wake.minute:02d}{suffix}',
+                'dayWindow': {
+                    'bedtimeAt': (now - timedelta(minutes=5)).isoformat(),
+                    'bedtimeFresh': True,
+                },
+            },
+        }
+        bedtime, alarm = module.sleep_window(entry)
+        self.assertTrue(module.sleep_lock_active(entry, bedtime + timedelta(minutes=5)))
+        self.assertFalse(module.sleep_lock_active(entry, bedtime - timedelta(minutes=1)))
+        self.assertFalse(module.sleep_lock_active(entry, alarm))
+        controller, records = self.replay([True] * 8, sleep_entry=entry)
+        self.assertFalse(controller.display_on)
+        self.assertEqual(records, [])
+
+    def test_stale_or_missing_alarm_does_not_lock(self):
+        base = {'data': {'alarm': None, 'dayWindow': {}}}
+        self.assertIsNone(module.sleep_window(base))
+        self.assertIsNone(module.sleep_window({**base, 'stale': True}))
 
 
 if __name__ == '__main__':

@@ -133,6 +133,27 @@ def manual_control(payload):
     _persist_override(override)
     return status()
 
+def inverter(on: bool) -> bool:
+    """Drive GPIO17 and confirm it landed; pinctrl failing silently leaves the
+    PWM enabled behind a dark panel, which is the black-screen bug."""
+    for _ in range(2):
+        subprocess.run(["pinctrl", "set", "17", "op", "dh" if on else "dl"],
+                       check=False)
+        if inverter_is_on() == on:
+            return True
+    return False
+
+
+def inverter_is_on():
+    """None when pinctrl can't be read; callers treat unknown as not-on."""
+    try:
+        out = subprocess.run(["pinctrl", "get", "17"], capture_output=True,
+                             text=True, timeout=3).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return " hi " in f" {out.split('//')[0].replace('|', ' ')} "
+
+
 def apply_brightness(pct):
     pct, period, duty = pwm_settings(pct)
     with open(f"{PWM}/period") as f:
@@ -145,7 +166,7 @@ def apply_brightness(pct):
         w(f"{PWM}/period", period)
     w(f"{PWM}/duty_cycle", duty)
     w(f"{PWM}/enable", 1)
-    subprocess.run(["pinctrl", "set", "17", "op", "dh"], check=False)
+    inverter(True)
     save_pct(pct)
     return pct
 
@@ -153,14 +174,17 @@ def display(on: bool):
     if on:
         apply_brightness(saved_pct())
     else:
-        subprocess.run(["pinctrl", "set", "17", "op", "dl"], check=False)
+        inverter(False)
         w(f"{PWM}/duty_cycle", 0)
         w(f"{PWM}/enable", 0)
 
 def status():
     try:
         with open(f"{PWM}/enable") as f:
-            on = f.read().strip() == "1"
+            pwm_on = f.read().strip() == "1"
+        # Both halves must agree. Reporting on=true with the inverter dark is
+        # what let the controller sit on a black screen forever.
+        on = bool(pwm_on and inverter_is_on())
         override = _active_override()
         override_status = None
         if override:

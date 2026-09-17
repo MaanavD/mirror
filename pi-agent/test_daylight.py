@@ -54,10 +54,10 @@ class DaylightTests(unittest.TestCase):
                     self.assertEqual((pwm/'enable').read_text(),'0')
                     self.assertLessEqual(int((pwm/'duty_cycle').read_text()),value)
                 real_write(path,value)
-            with patch.object(agent,'PWM',tmp),patch.object(agent,'BRIGHT_FILE',str(pwm/'saved')),patch.object(agent.subprocess,'run'),patch.object(agent,'w',side_effect=checked_write):
+            with patch.object(agent,'PWM',tmp),patch.object(agent,'BRIGHT_FILE',str(pwm/'saved')),patch.object(agent.subprocess,'run'),patch.object(agent,'inverter_is_on',return_value=True),patch.object(agent,'w',side_effect=checked_write):
                 for pct in (1,2,3,4,100,1):
                     self.assertEqual(agent.apply_brightness(pct),pct)
-                    self.assertEqual(agent.status(),{'on':True,'brightness':pct})
+                    self.assertEqual(agent.status(),{'on':True,'brightness':pct,'override':None})
                 agent.display(False)
                 self.assertEqual((pwm/'enable').read_text(),'0')
                 agent.display(True)

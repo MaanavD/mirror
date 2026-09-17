@@ -11,12 +11,13 @@ import fcntl
 import json
 import math
 import os
+import re
 import signal
 import sys
 import threading
 import time
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timedelta
 from daylight import daylight_brightness
 from room_lighting import room_light_floor
 
@@ -32,6 +33,7 @@ I2C_ADDRESS = int(os.environ.get("BH1750_ADDRESS", "0x23"), 0)
 POLL_SECONDS = max(0.25, float(os.environ.get("CONTROLLER_POLL_SECONDS", "0.25")))
 MANUAL_OVERRIDE_POLL_SECONDS = 1.0
 SENSOR_PUSH_SECONDS = max(1.0, float(os.environ.get("SENSOR_PUSH_SECONDS", "2")))
+SLEEP_STATE_POLL_SECONDS = max(30.0, float(os.environ.get("SLEEP_STATE_POLL_SECONDS", "60")))
 ABSENCE_OFF_SECONDS = max(0.0, float(os.environ.get("ABSENCE_OFF_SECONDS", "60")))
 PRESENCE_REFRESH_SECONDS = max(10.0, float(os.environ.get("PRESENCE_REFRESH_SECONDS", "45")))
 WAKE_FADE_SECONDS = max(0.25, float(os.environ.get("WAKE_FADE_SECONDS", "1.2")))
@@ -86,6 +88,65 @@ def parse_clock(value: str) -> int:
     except (TypeError, ValueError):
         pass
     raise ValueError(f"invalid clock time: {value!r}")
+
+
+_ALARM_RE = re.compile(r"^\s*(\d{1,2}):(\d{2})\s*([AP](?:M)?)\s*$", re.IGNORECASE)
+
+
+def parse_iso(value: object) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed.astimezone() if parsed.tzinfo is None else parsed
+
+
+def alarm_after(bedtime: datetime, value: object) -> datetime | None:
+    match = _ALARM_RE.match(str(value or ""))
+    if not match:
+        return None
+    hour, minute = int(match.group(1)), int(match.group(2))
+    if hour > 12 or minute > 59:
+        return None
+    if match.group(3).upper().startswith("P") and hour != 12:
+        hour += 12
+    if match.group(3).upper().startswith("A") and hour == 12:
+        hour = 0
+    local_bedtime = bedtime.astimezone()
+    alarm = local_bedtime.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if alarm <= local_bedtime:
+        alarm += timedelta(days=1)
+    return alarm
+
+
+def sleep_window(entry: object) -> tuple[datetime, datetime] | None:
+    """Return the current alarm-backed sleep interval, when wellness is fresh."""
+    if not isinstance(entry, dict) or entry.get("stale") is True:
+        return None
+    data = entry.get("data")
+    window = data.get("dayWindow") if isinstance(data, dict) else None
+    if not isinstance(data, dict) or not data.get("alarm") or not isinstance(window, dict):
+        return None
+    if window.get("bedtimeFresh") is not True:
+        return None
+    bedtime = parse_iso(window.get("bedtimeAt"))
+    wake = alarm_after(bedtime, data.get("alarm")) if bedtime else None
+    if bedtime is None or wake is None or wake <= bedtime:
+        return None
+    return bedtime, wake
+
+
+def sleep_lock_active(entry: object, now: datetime | None = None) -> bool:
+    interval = sleep_window(entry)
+    if interval is None:
+        return False
+    now = now or datetime.now().astimezone()
+    if now.tzinfo is None:
+        now = now.astimezone()
+    bedtime, wake = interval
+    return bedtime <= now < wake
 
 
 def in_quiet_hours(now: datetime | None = None) -> bool:
@@ -160,6 +221,10 @@ class Controller:
         self.lighting_entry = None
         self.lighting_thread = None
         self.last_lighting_poll = None
+        self.sleep_entry = None
+        self.sleep_thread = None
+        self.last_sleep_poll = None
+        self.last_sleep_lock = None
         self.brightness_source = "daylight"
         self.fade_key = None
         self.fade_started_at = 0.0
@@ -350,6 +415,49 @@ class Controller:
             self.lighting_thread = threading.Thread(target=refresh, name="room-lighting", daemon=True)
             self.lighting_thread.start()
 
+    def _refresh_sleep_state(self, now: float) -> None:
+        """Refresh the existing wellness window without blocking presence sampling."""
+        if not MIRROR_URL or not MIRROR_TOKEN:
+            return
+        with self.lock:
+            if self.sleep_thread is not None and self.sleep_thread.is_alive():
+                return
+            if self.last_sleep_poll is not None and now - self.last_sleep_poll < SLEEP_STATE_POLL_SECONDS:
+                return
+            self.last_sleep_poll = now
+
+            def refresh() -> None:
+                try:
+                    request = urllib.request.Request(
+                        f"{MIRROR_URL}/api/state",
+                        headers={
+                            "Authorization": f"Bearer {MIRROR_TOKEN}",
+                            "Cache-Control": "no-cache",
+                        },
+                    )
+                    with urllib.request.urlopen(request, timeout=3) as response:
+                        state = json.loads(response.read(65536))
+                    wellness = state.get("modules", {}).get("wellness") if isinstance(state, dict) else None
+                    if not isinstance(wellness, dict) or wellness.get("stale") is True:
+                        wellness = None
+                    with self.lock:
+                        self.sleep_entry = wellness
+                except (OSError, ValueError, TypeError, AttributeError):
+                    # Fail open when the dashboard data is stale or unreachable.
+                    with self.lock:
+                        self.sleep_entry = None
+                finally:
+                    with self.lock:
+                        self.sleep_thread = None
+
+            self.sleep_thread = threading.Thread(target=refresh, name="sleep-state", daemon=True)
+            self.sleep_thread.start()
+
+    def _sleep_locked(self) -> bool:
+        with self.lock:
+            entry = self.sleep_entry
+        return sleep_lock_active(entry)
+
     def _brightness_target(self, lux: float | None) -> int:
         if lux is not None:
             target, source = brightness_for_lux(lux), "lux"
@@ -374,7 +482,13 @@ class Controller:
             current = self.current_percent
             is_on = self.display_on
             last_presence = self.last_presence_at
-        awake = present or (last_presence is not None and now - last_presence < ABSENCE_OFF_SECONDS)
+        sleep_locked = self._sleep_locked()
+        with self.lock:
+            previous_sleep_lock = self.last_sleep_lock
+            self.last_sleep_lock = sleep_locked
+        if previous_sleep_lock is not None and previous_sleep_lock != sleep_locked:
+            log(f"sleep lock {'active' if sleep_locked else 'released'}")
+        awake = not sleep_locked and (present or (last_presence is not None and now - last_presence < ABSENCE_OFF_SECONDS))
         if not is_on:
             self.fade_key = None
             if not awake:
@@ -424,6 +538,7 @@ class Controller:
             now = time.monotonic()
             try:
                 self._refresh_lighting(now)
+                self._refresh_sleep_state(now)
                 present = self._read_presence()
                 with self.lock:
                     previous = self.present
