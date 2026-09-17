@@ -1,0 +1,20 @@
+[Unit]
+Description=AirPlay receiver for smart mirror
+Requires=smart-mirror-kiosk.service
+After=smart-mirror-kiosk.service
+PartOf=smart-mirror-kiosk.service
+
+[Service]
+User=maanav-pi
+Environment=HOME=/home/maanav-pi
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+EnvironmentFile=/etc/default/pi-agent
+ExecStart=/usr/bin/python3 /opt/pi-agent/uxplay_wrapper.py /usr/bin/uxplay -d -vd v4l2h264dec -bt709 -vc "v4l2convert ! video/x-raw,format=BGRA" -s 1080x1920@24 -fps 24 -n Hermy.EXE -nh -fs -vs waylandsink
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=uxplay
+
+[Install]
+WantedBy=multi-user.target
