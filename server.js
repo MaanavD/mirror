@@ -33,7 +33,7 @@ app.disable('x-powered-by');
 app.use(express.json({ limit: '16kb' }));
 
 const MANUAL_DEFAULT_HOLD_SECONDS = 30 * 60;
-const MANUAL_MAX_HOLD_SECONDS = 2 * 60 * 60;
+const MANUAL_MAX_HOLD_SECONDS = 12 * 60 * 60;
 
 function integerInRange(value, min, max) {
   const number = Number(value);

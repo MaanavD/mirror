@@ -3,7 +3,7 @@
 Endpoints: POST /display/on, POST /display/off, POST /display/brightness,
 POST /display/manual, GET /display/status, GET /healthz
 Controls PWM backlight (pwmchip0/pwm0) + inverter enable on GPIO17."""
-import json, os, subprocess, time
+import json, os, subprocess, sys, time
 from pwm_brightness import pwm_settings
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -16,7 +16,11 @@ VOICE_DIR = "/opt/pi-agent/voice"
 DEFAULT_PCT = 20
 OVERRIDE_FILE = "/opt/pi-agent/manual_override.json"
 MANUAL_DEFAULT_SECONDS = 30 * 60
-MANUAL_MAX_SECONDS = 2 * 60 * 60
+MANUAL_MAX_SECONDS = 12 * 60 * 60
+# A manual "on" at or below this brightness hands the panel back to the presence
+# controller instead of leasing it. The floor is a dim request, not a command to
+# stay lit, so the room can still sleep the mirror on its own.
+SENSOR_MODE_MAX_PERCENT = max(1, int(os.environ.get("SENSOR_MODE_MAX_PERCENT", "1")))
 _manual_override = None
 _override_loaded = False
 
@@ -99,6 +103,11 @@ def _integer(value, label):
     return int(number)
 
 
+def in_sensor_mode(mode, percent):
+    """True when a manual write hands the panel back to the presence loop."""
+    return mode == "on" and percent is not None and percent <= SENSOR_MODE_MAX_PERCENT
+
+
 def manual_control(payload):
     mode = str(payload.get("mode", "")).lower()
     if mode not in ("on", "off", "auto"):
@@ -126,6 +135,12 @@ def manual_control(payload):
         apply_brightness(percent) if percent is not None else display(True)
     else:
         display(False)
+
+    if in_sensor_mode(mode, percent):
+        # Drop any hold, including one this call replaced: the presence
+        # controller reads an empty override and takes the panel back.
+        _clear_override()
+        return status()
 
     override = {"mode": mode, "expires_at": time.time() + duration}
     if percent is not None:
@@ -292,5 +307,19 @@ class H(BaseHTTPRequestHandler):
             ctype = self.headers.get("Content-Type", "none")
             print(f"{self.client_address[0]}:{self.client_address[1]} {self.path} -> {code} ua={ua!r} ct={ctype!r}", flush=True)
 
+
+def self_test():
+    assert in_sensor_mode("on", 1), "floor brightness must hand the panel back"
+    assert not in_sensor_mode("on", 2), "2% and up keeps its hold"
+    assert not in_sensor_mode("on", 100)
+    assert not in_sensor_mode("on", None), "a bare on keeps its hold"
+    assert not in_sensor_mode("off", 1), "off is never sensor mode"
+    assert not in_sensor_mode("auto", None)
+    print("pi-agent self-test ok")
+
+
 if __name__ == "__main__":
-    HTTPServer(("0.0.0.0", PORT), H).serve_forever()
+    if "--self-test" in sys.argv:
+        self_test()
+    else:
+        HTTPServer(("0.0.0.0", PORT), H).serve_forever()
