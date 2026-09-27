@@ -10,9 +10,9 @@
 <body>
   <!--
     1080×1920 behind two-way glass: black is mirror, light is screen.
-    The corridor x 340–740 below the top band is where the reflection lives;
-    nothing renders there. Top band = when + what matters; rails = detail;
-    bottom band = ambient. See DESIGN.md.
+    Below the top band, everything lives in one column on the left; x 380–1080
+    is left to the reflection. Top band = when + what matters; column = the
+    day; bottom band = ambient. See DESIGN.md.
   -->
   <main id="dashboard">
     <header class="top" aria-label="Time, weather and what matters now">
@@ -24,15 +24,13 @@
       <section class="headline" id="headline" aria-live="polite"></section>
     </header>
 
-    <section class="rail left" aria-labelledby="stream-heading">
-      <h2 class="rail-label" id="stream-heading">Rest of today</h2>
-      <p class="all-day" id="all-day" hidden></p>
-      <ol class="stream" id="stream"></ol>
-      <p class="note" id="stream-note" hidden></p>
-    </section>
-
-    <aside class="rail right">
-      <section class="block" id="weather-block" aria-label="Weather ahead"></section>
+    <div class="column">
+      <section class="block" aria-labelledby="stream-heading">
+        <h2 class="rail-label" id="stream-heading">Rest of today</h2>
+        <p class="all-day" id="all-day" hidden></p>
+        <ol class="stream" id="stream"></ol>
+        <p class="note" id="stream-note" hidden></p>
+      </section>
       <section class="block" id="focus-block" aria-labelledby="focus-heading">
         <h2 class="rail-label" id="focus-heading">Worth your time</h2>
         <div id="focus"></div>
@@ -41,7 +39,7 @@
         <h2 class="rail-label" id="ahead-heading">Coming up</h2>
         <div id="ahead"></div>
       </section>
-    </aside>
+    </div>
 
     <footer class="bottom">
       <section class="agents" id="agents" aria-label="Agent activity" hidden></section>

@@ -30,6 +30,28 @@ export function flightLabel(summary) {
   return (m ? m[1] : String(summary ?? 'flight')).trim().toUpperCase();
 }
 
+// A leg that departs within this long of the previous one landing is a
+// connection, not a destination: SEA→YYZ, 27h, YYZ→ATH is a trip to Athens.
+export const CONNECTION_MS = 36 * 60 * 60_000;
+
+/** First upcoming trip from flight legs {summary, startMs, endMs}, sorted or not. */
+export function tripFrom(legs) {
+  const sorted = [...legs].sort((a, b) => a.startMs - b.startMs);
+  if (!sorted.length) return null;
+  const trip = [sorted[0]];
+  for (const leg of sorted.slice(1)) {
+    const last = trip.at(-1);
+    if (leg.startMs - (last.endMs ?? last.startMs) > CONNECTION_MS) break;
+    trip.push(leg);
+  }
+  const first = trip[0], final = trip.at(-1);
+  return {
+    summary: final.summary,
+    startMs: first.startMs,
+    via: trip.slice(0, -1).map((leg) => flightLabel(leg.summary)),
+  };
+}
+
 export function daysUntil(dateKey, now, timeZone) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
   if (!m) return null;
@@ -44,7 +66,7 @@ export function shapeCountdown({ flight, milestones }, { now, timeZone }) {
   if (flight) {
     const days = daysUntil(localDateKey(new Date(flight.startMs), timeZone), now, timeZone);
     if (days !== null && days >= 0 && days <= FLIGHT_HORIZON_DAYS) {
-      items.push({ kind: 'flight', label: flightLabel(flight.summary), days });
+      items.push({ kind: 'flight', label: flightLabel(flight.summary), days, via: flight.via ?? [] });
     }
   }
 
@@ -86,7 +108,7 @@ async function nextFlight(config, now) {
     for (const q of ['flight', 'flying']) {
       queries.push((async () => {
         const params = new URLSearchParams({
-          timeMin, timeMax, q, singleEvents: 'true', orderBy: 'startTime', maxResults: '5',
+          timeMin, timeMax, q, singleEvents: 'true', orderBy: 'startTime', maxResults: '10',
         });
         const payload = await fetchJson(`${CALENDAR_API}/${encodeURIComponent(id)}/events?${params}`, {
           headers: { authorization: `Bearer ${accessToken}` },
@@ -98,7 +120,7 @@ async function nextFlight(config, now) {
   }
   const results = await Promise.allSettled(queries);
 
-  let best = null;
+  const legs = new Map();
   for (const result of results) {
     if (result.status !== 'fulfilled') continue;
     for (const item of result.value) {
@@ -106,12 +128,12 @@ async function nextFlight(config, now) {
       if (!FLIGHT_RE.test(item.summary ?? '')) continue;
       const start = new Date(item.start?.dateTime ?? item.start?.date ?? NaN);
       if (Number.isNaN(start.getTime()) || start.getTime() < now.getTime()) continue;
-      if (!best || start.getTime() < best.startMs) {
-        best = { summary: item.summary, startMs: start.getTime() };
-      }
+      const end = new Date(item.end?.dateTime ?? item.end?.date ?? NaN);
+      legs.set(item.id ?? `${item.summary}:${start.getTime()}`,
+        { summary: item.summary, startMs: start.getTime(), endMs: Number.isNaN(end.getTime()) ? null : end.getTime() });
     }
   }
-  return best;
+  return tripFrom([...legs.values()]);
 }
 
 export const countdownModule = {

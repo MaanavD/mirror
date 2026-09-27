@@ -1,10 +1,9 @@
 /* Mirror layout. Black is glass; every lit pixel is a choice.
    Geometry of record (1080×1920):
      top band     y 36–300, full width           clock · weather · headline
-     left rail    x 56–340,  y 340–1520          rest of today
-     right rail   x 740–1024, y 340–1520         weather ahead · focus · coming up
+     column       x 56–368,  y 348–1520          rest of today · focus · coming up
      bottom band  y 1552–1872, full width        agents · music · Hermy
-     corridor     x 340–740, y 300–1552          empty: that's you (head ≈ y 300–950) */
+     reflection   x 368–1080, y 300–1552         empty: that's you */
 :root {
   color-scheme: dark;
   --bg: #000;
@@ -17,7 +16,7 @@
   --clock: #d8f4f6;
   --pixel: 'Press Start 2P', ui-monospace, monospace;
   --terminal: 'VT323', ui-monospace, SFMono-Regular, Menlo, monospace;
-  --rail: 284px;
+  --rail: 312px;
   --edge: 56px;
 }
 /* After the blue-light cutoff the glass goes warm, like everything else should. */
@@ -44,7 +43,7 @@ body.soft-off #dashboard { opacity: 0; }
 .clock { display: flex; align-items: baseline; gap: 12px; font-variant-numeric: tabular-nums; }
 #time { font: 140px/.84 var(--terminal); letter-spacing: -.02em; color: var(--clock); }
 #period { font: 30px var(--terminal); color: var(--muted); }
-.date-row { display: flex; align-items: baseline; gap: 28px; margin-top: 8px; }
+.date-row { display: flex; align-items: center; gap: 28px; margin-top: 8px; }
 .date { font: 30px/1.1 var(--terminal); color: var(--secondary); }
 
 .now-weather { grid-area: weather; justify-self: end; text-align: right; padding-top: 4px; }
@@ -53,24 +52,27 @@ body.soft-off #dashboard { opacity: 0; }
 .now-weather .deg { font: 100px/.84 var(--terminal); }
 .now-weather .cond { margin-top: 8px; font: 28px/1.1 var(--terminal); color: var(--secondary); }
 .now-weather .range { margin-top: 2px; font: 24px var(--terminal); color: var(--muted); }
+.now-weather .call { margin-top: 2px; font: 24px var(--terminal); color: var(--accent); }
+.now-weather .uv { margin-top: 2px; font: 24px var(--terminal); color: var(--amber); }
+.now-weather .uv.low, .now-weather .uv.past { color: var(--muted); }
 
 /* One line of context, then the thing itself. Ends by y≈300: above the face. */
-.headline { grid-area: headline; margin-top: 16px; padding: 12px 0 0 22px; border-top: 1px solid var(--line); position: relative; min-height: 96px; }
+.headline { grid-area: headline; margin-top: 16px; padding: 12px 0 0 24px; border-top: 1px solid var(--line); position: relative; min-height: 96px; }
 .headline::before { content: ''; position: absolute; left: 0; top: 16px; bottom: 4px; width: 4px; background: var(--accent); }
-.headline .label { font: 27px/1.1 var(--terminal); color: var(--secondary); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.headline .kw { font: 14px/1 var(--pixel); color: var(--accent); text-transform: uppercase; margin-right: 12px; vertical-align: 3px; }
+.headline .label { display: flex; align-items: center; gap: 14px; height: 30px; font: 27px/1 var(--terminal); color: var(--secondary); white-space: nowrap; }
+.headline .kw { flex: none; font: 14px/1 var(--pixel); color: var(--accent); text-transform: uppercase; padding-top: 2px; }
+.headline .ctx { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .headline .title { margin-top: 4px; font: 50px/1 var(--terminal); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .headline.soon::before { background: var(--amber); }
 .headline.soon .kw { color: var(--amber); }
 .headline.calm::before { background: var(--muted); }
 .headline.night::before { background: var(--muted); }
-.headline .bar { position: absolute; left: 22px; bottom: -8px; width: 480px; height: 2px; background: var(--line); }
+.headline .bar { position: absolute; left: 24px; bottom: -8px; width: 480px; height: 2px; background: var(--line); }
 .headline .bar span { position: absolute; inset: 0 auto 0 0; background: var(--accent); }
 
 /* ── rails ────────────────────────────────────────────────────────────── */
-.rail { position: absolute; top: 348px; width: var(--rail); max-height: 1128px; overflow: hidden; }
-.rail.left { left: var(--edge); }
-.rail.right { right: var(--edge); display: flex; flex-direction: column; gap: 40px; }
+.column { position: absolute; left: var(--edge); top: 348px; width: var(--rail); max-height: 1172px; overflow: hidden;
+  display: flex; flex-direction: column; gap: 40px; }
 .rail-label { font: 12px/1.6 var(--pixel); color: #a9cddb; text-transform: uppercase; padding-bottom: 10px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
 .warm .rail-label { color: var(--secondary); }
 .note { margin-top: 14px; font: 21px/1.2 var(--terminal); color: var(--muted); }
@@ -99,6 +101,10 @@ body.soft-off #dashboard { opacity: 0; }
 .stream .cutoff.live .meta { color: var(--amber); }
 .stream .bed::before { background: var(--muted); }
 .stream .bed .title { font-size: 25px; color: var(--secondary); }
+.stream .slept::before { background: var(--accent); border-color: var(--accent); transform: rotate(45deg) scale(.8); }
+.stream .slept .meta { color: var(--accent); }
+.stream .slept.missing::before { background: var(--bg); border-color: var(--muted); }
+.stream .slept.missing .meta { color: var(--muted); }
 .stream .day-break { margin-top: 6px; padding-top: 14px; border-top: 1px dashed var(--line); }
 .stream .day-break::before { display: none; }
 .stream .day-break .meta { font: 12px/1.6 var(--pixel); color: var(--muted); text-transform: uppercase; }
@@ -106,31 +112,24 @@ body.soft-off #dashboard { opacity: 0; }
 .linger .stream .extra { display: block; }
 
 /* Right rail blocks share the stream's meta/title grammar. */
-.hours { display: grid; gap: 8px; }
-.hour { display: grid; grid-template-columns: 92px 36px 1fr; align-items: baseline; font: 25px/1.1 var(--terminal); color: var(--secondary); }
-.hour .t { color: var(--muted); }
-.hour .g { font: 22px system-ui, sans-serif; color: var(--muted); text-align: center; }
-.hour .v { text-align: right; }
-.hour.wet .g, .hour.wet .v { color: var(--accent); }
-.weather-call { margin-bottom: 14px; font: 27px/1.1 var(--terminal); color: var(--accent); }
-.sun { margin-top: 14px; display: grid; gap: 4px; font: 22px/1.15 var(--terminal); color: var(--muted); }
-.sun .uv { color: var(--amber); }
+/* One text edge (x 80) for everything under a label; labels hang at x 56. */
+#focus, #ahead { padding-left: 24px; }
 .item + .item { margin-top: 18px; }
 .item .meta { font: 20px/1.15 var(--terminal); color: var(--accent); text-transform: uppercase; }
 .item .title { margin-top: 3px; font: 27px/1.08 var(--terminal); overflow-wrap: anywhere;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .item.extra { display: none; }
 .linger .item.extra { display: block; }
-.count { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
-.count + .count { margin-top: 12px; }
+.count { display: grid; grid-template-columns: minmax(0,1fr) auto; column-gap: 12px; align-items: baseline; }
+.count + .count { margin-top: 14px; }
+.count .kind { grid-column: 1 / -1; font: 18px/1.2 var(--terminal); color: var(--muted); text-transform: uppercase; }
 .count .what { font: 27px/1.1 var(--terminal); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.count .kind { display: block; font: 18px var(--terminal); color: var(--muted); text-transform: uppercase; }
-.count .days { font: 40px/1 var(--terminal); white-space: nowrap; }
-.count .days small { font-size: 20px; color: var(--muted); margin-left: 4px; }
+.count .days { font: 27px/1.1 var(--terminal); white-space: nowrap; text-align: right; }
+.count .days small { font-size: 21px; color: var(--muted); margin-left: 6px; }
 .week { margin-top: 14px; font: 22px var(--terminal); color: var(--muted); }
 .week strong { font-weight: 400; color: var(--accent); }
 .lights { display: flex; flex-wrap: wrap; gap: 6px 18px; font: 21px/1.2 var(--terminal); color: var(--muted); }
-.light { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.light { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; line-height: 1; }
 .light i { width: 8px; height: 8px; border: 1px solid var(--muted); }
 .light.on { color: var(--secondary); }
 .light.on i { background: var(--accent); border-color: var(--accent); }
@@ -177,7 +176,7 @@ body.soft-off #dashboard { opacity: 0; }
 /* Wind-down: no work on the glass. */
 .phase-winddown #focus-block, .phase-winddown .agents { display: none; }
 /* Bedtime and night: a clock and one sentence. The mirror is a mirror. */
-.phase-bedtime .rail, .phase-bedtime .bottom, .phase-night .rail, .phase-night .bottom,
+.phase-bedtime .column, .phase-bedtime .bottom, .phase-night .column, .phase-night .bottom,
 .phase-bedtime .now-weather, .phase-night .now-weather, .phase-bedtime #home, .phase-night #home { display: none; }
 .phase-bedtime #dashboard, .phase-night #dashboard { filter: brightness(.6); }
 .phase-night #dashboard { filter: brightness(.4); }

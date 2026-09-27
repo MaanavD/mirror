@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {lightingFor,localInstant,prioritiesFor,comfortFor,focusTasks,firstMeetingTomorrow,cutoffsFor,streamFor,headlineFor} from '../public/day-model.js';
+import {lightingFor,localInstant,prioritiesFor,comfortFor,focusTasks,firstMeetingTomorrow,cutoffsFor,streamFor,headlineFor,lastNightFor} from '../public/day-model.js';
 import {sleepSchedule} from '../public/sleep-model.js';
 import {taskRecords,pickProperties} from '../src/modules/notion.js';
 import {shapeAgenda} from '../src/modules/calendar.js';
@@ -80,7 +80,8 @@ test('headline: wind-down, bedtime and morning speak about sleep',()=>{
  s.modules.wellness=entry({dayWindow:{lastNight:{wakeAt:at(8),durationHours:7.5,score:88}}});
  const sc=sched(s,morning);
  const h=headlineFor(s,morning,sc);
- assert.equal(h.label,'Good morning');assert.match(h.detail,/slept 7.5h · score 88/);
+ assert.equal(h.label,'Good morning');
+ assert.equal(lastNightFor(s,morning).asleep,'7h 30m');
 });
 
 test('priorities exclude agent work, respect local dates and review status',()=>{

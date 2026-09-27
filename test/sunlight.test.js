@@ -31,3 +31,16 @@ test('astro returns zoned sunset instants and valid hourly UV only',()=>{
  assert.equal(shaped.sunsetAt,'2026-09-06T02:41:00.000Z');assert.equal(shaped.sunrise,'06:33');assert.deepEqual(shaped.uvHours,[{at:'2026-09-05T20:00:00.000Z',uv:4.5}]);
  assert.equal(new URL(buildUrl({lat:47.6,lon:-122.3,timezone:zone})).searchParams.get('hourly'),'uv_index');
 });
+
+test('UV for the day: the sunscreen window and the peak, even before it starts', async () => {
+  const { uvDayFor } = await import('../public/attention.js');
+  const zone = 'America/Los_Angeles', morning = Date.parse('2026-09-27T15:00:00Z'); // 8 AM PT
+  const uvHours = [16, 18, 19, 20, 21, 22, 23].map((h, i) => ({ at: `2026-09-27T${h}:00:00Z`, uv: [1, 3, 4.6, 5.1, 4, 2.5, 1][i] }));
+  const uv = uvDayFor({ data: { uvHours }, stale: false, fetchedAt: morning }, morning, zone);
+  assert.equal(uv.state, 'ahead');
+  assert.equal(uv.peak, 5.1);
+  assert.equal(uv.from, Date.parse('2026-09-27T18:00:00Z'));
+  assert.equal(uv.to, Date.parse('2026-09-27T22:00:00Z'));
+  const low = uvDayFor({ data: { uvHours: [{ at: '2026-09-27T20:00:00Z', uv: 2 }] }, stale: false, fetchedAt: morning }, morning, zone);
+  assert.equal(low.state, 'low');
+});

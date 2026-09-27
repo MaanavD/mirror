@@ -61,3 +61,16 @@ test('mock renders both kinds so the layout can be reviewed offline', () => {
   assert.equal(data.items[1].kind, 'milestone');
 });
 
+
+test('connecting legs are one trip, named for where it ends', async () => {
+  const { tripFrom } = await import('../src/modules/countdown.js');
+  const h = 3_600_000, t0 = Date.parse('2026-10-03T15:00:00Z');
+  const trip = tripFrom([
+    { summary: 'Flight to Athens (AC 896)', startMs: t0 + 31 * h, endMs: t0 + 40 * h },
+    { summary: 'Flight to Toronto (AC 540)', startMs: t0, endMs: t0 + 5 * h },
+    { summary: 'Flight to Munich (UA 9527)', startMs: t0 + 140 * h, endMs: t0 + 143 * h },
+  ]);
+  assert.equal(trip.summary, 'Flight to Athens (AC 896)');
+  assert.equal(trip.startMs, t0);
+  assert.deepEqual(trip.via, ['TORONTO']);
+});

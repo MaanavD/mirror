@@ -145,3 +145,22 @@ export function sunlightFor(entry, now, zone = 'America/Los_Angeles') {
   }
   return out;
 }
+
+/**
+ * The day's UV in one line: when it's worth sunscreen (UV ≥ 3) and the peak.
+ * {peak, peakAt, from, to, state: 'low' | 'ahead' | 'now' | 'past'} | null
+ */
+export function uvDayFor(entry, now, zone = 'America/Los_Angeles') {
+  if (!fresh(entry, 'astro', now)) return null;
+  const today = dateKey(now, zone);
+  const hours = (entry.data?.uvHours ?? [])
+    .map(h => ({ at: instant(h.at), uv: h.uv }))
+    .filter(h => Number.isFinite(h.at) && Number.isFinite(h.uv) && h.uv >= 0 && dateKey(h.at, zone) === today)
+    .sort((a, b) => a.at - b.at);
+  if (!hours.length) return null;
+  const peak = hours.reduce((best, h) => h.uv > best.uv ? h : best);
+  const strong = hours.filter(h => h.uv >= 3);
+  if (!strong.length) return { peak: peak.uv, peakAt: peak.at, from: null, to: null, state: 'low' };
+  const from = strong[0].at, to = strong.at(-1).at + 60 * MINUTE;
+  return { peak: peak.uv, peakAt: peak.at, from, to, state: now < from ? 'ahead' : now < to ? 'now' : 'past' };
+}

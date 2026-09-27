@@ -41,7 +41,7 @@ export function exampleState(kind, realNow = Date.now()) {
         current: { temp: 14, code: 2, text: 'Partly cloudy' }, today: { hi: 18, lo: 11 },
         hours: [0, 1, 2, 3, 4, 5, 6].map((i) => ({ at: iso(now - (now % (60 * MINUTE)) + i * 60 * MINUTE), temp: 14 + (i < 3 ? i : 5 - i), code: i === 3 || i === 4 ? 61 : 2 })),
       }),
-      astro: module({ sunsetAt: iso(at(19, 2)), uvHours: [] }),
+      astro: module({ sunsetAt: iso(at(19, 2)), uvHours: [9, 10, 11, 12, 13, 14, 15, 16, 17].map((h, i) => ({ at: iso(at(h)), uv: [1, 2, 3.2, 4.4, 5, 4.6, 3.4, 2, 1][i] })) }),
       notion: module({ configured: true, items: [
         { id: 'p1', title: 'Book the physio appointment', due: today, source: 'personal' },
         { id: 'p2', title: 'Pack for SF move', status: 'In progress', source: 'personal' },
@@ -50,7 +50,7 @@ export function exampleState(kind, realNow = Date.now()) {
         { id: 'w1', title: 'Review the new demo samples', status: 'Review', source: 'work' },
         { id: 'w2', title: 'Draft the launch FAQ', status: 'In progress', source: 'work' },
       ] }),
-      countdown: module({ items: [{ kind: 'milestone', label: 'SF MOVE', days: 18 }, { kind: 'flight', label: 'TORONTO', days: 32 }] }),
+      countdown: module({ items: [{ kind: 'flight', label: 'ATHENS', days: 6, via: ['TORONTO'] }, { kind: 'milestone', label: 'SF MOVE', days: 18 }] }),
       progress: module({ weekCount: 6, trackingSince: iso(now - 20 * 86_400_000), timeZone: zone, items: [] }),
       nanoleaf: module({ lights: [
         { entityId: 'light.shapes_a418', name: 'Flower', on: true, brightness: 140 },

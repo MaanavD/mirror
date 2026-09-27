@@ -128,7 +128,8 @@ export function lastNightFor(state, now=Date.now()) {
   if(!night)return null;
   const wake=instant(night.wakeAt);
   if(!Number.isFinite(wake)||now-wake>6*60*MINUTE||now<wake)return null;
-  return {hours:night.durationHours,score:night.score,wakeAt:wake};
+  return {hours:night.durationHours,score:night.score,wakeAt:wake,
+    asleep:Number.isFinite(night.durationHours)?durationLabel(night.durationHours*60*MINUTE):null};
 }
 
 /**
@@ -158,10 +159,9 @@ export function headlineFor(state, now=Date.now(), sleep=null, stream=streamFor(
         sleep.firstMeeting?`first up ${t(sleep.firstMeeting.at)} ${sleep.firstMeeting.title}`:'nothing early tomorrow'].filter(Boolean).join(' · ')};
   }
   if(phase==='morning'){
-    const n=lastNightFor(state,now);
-    const slept=n?[Number.isFinite(n.hours)?`slept ${n.hours}h`:null,Number.isFinite(n.score)?`score ${n.score}`:null].filter(Boolean).join(' · '):'';
+    // Last night's numbers open the stream below; the headline is the day.
     return {tone:'calm',eventId:next?.id,label:'Good morning',title:next?`${t(next.at)} ${next.title}`:'Nothing on the calendar',
-      detail:[slept||null,next?`first up in ${durationLabel(next.at-now)}`:null].filter(Boolean).join(' · ')};
+      detail:next?`first up in ${durationLabel(next.at-now)}${next.location?` · ${next.location}`:''}`:'a clear day'};
   }
   if(next)
     return {tone:'next',eventId:next.id,label:'Next',title:next.title,

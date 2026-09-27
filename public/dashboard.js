@@ -1,5 +1,5 @@
-import { fresh, dateKey, timeLabel, instant, horizonFor, sunlightFor, MINUTE } from './attention.js';
-import { lightingFor, streamFor, headlineFor, focusTasks, comfortFor, durationLabel } from './day-model.js';
+import { fresh, timeLabel, instant, horizonFor, uvDayFor, MINUTE } from './attention.js';
+import { lightingFor, streamFor, headlineFor, focusTasks, comfortFor, durationLabel, lastNightFor } from './day-model.js';
 import { sleepSchedule, scheduleFromState, phaseAt } from './sleep-model.js';
 
 /*
@@ -83,14 +83,25 @@ function renderClock(now, zone) {
     .format(new Date(now));
 }
 
-function renderNowWeather(m, now) {
+function uvLine(uv, zone) {
+  if (!uv) return null;
+  const peak = `peak ${Math.round(uv.peak)}`;
+  if (uv.state === 'low') return el('p', 'uv low', `UV low today · ${peak}`);
+  const span = `${t(uv.from, zone).replace(':00', '')}–${t(uv.to, zone).replace(':00', '')}`;
+  return el('p', `uv ${uv.state}`, uv.state === 'past' ? `UV done · ${peak}` : `UV 3+ ${span} · ${peak}`);
+}
+
+function renderNowWeather(m, now, zone) {
   const d = fresh(m.weather, 'weather', now) ? m.weather.data : null;
-  replace('now-weather', [d?.current, d?.today], () => {
+  const call = comfortFor(m.weather, now, zone);
+  const uv = uvDayFor(m.astro, now, zone);
+  replace('now-weather', [d?.current, d?.today, call, uv], () => {
     if (!d?.current) return [];
     const temp = el('div', 'temp');
     temp.append(el('span', 'glyph', weatherGlyph(d.current.code)), el('span', 'deg', deg(d.current.temp)));
-    return [temp, el('p', 'cond', d.current.text),
-      Number.isFinite(d.today?.hi) ? el('p', 'range', `H ${deg(d.today.hi)} · L ${deg(d.today.lo)}`) : null];
+    const range = Number.isFinite(d.today?.hi) ? `H ${deg(d.today.hi)} · L ${deg(d.today.lo)}` : null;
+    return [temp, el('p', 'cond', [d.current.text, range].filter(Boolean).join(' · ')),
+      call ? el('p', 'call', call) : null, uvLine(uv, zone)];
   });
 }
 
@@ -99,7 +110,7 @@ function renderHeadline(h, current, now) {
   node.className = `headline ${h.tone}`;
   replace('headline', [h, current ? minuteOf(now) : null], () => {
     const label = el('p', 'label');
-    label.append(el('span', 'kw', h.label), document.createTextNode(h.detail ?? ''));
+    label.append(el('span', 'kw', h.label), el('span', 'ctx', h.detail ?? ''));
     const out = [label, el('p', 'title', h.title)];
     if (current && h.tone === 'now') {
       const bar = el('div', 'bar'), fill = el('span');
@@ -146,12 +157,22 @@ function renderStream(stream, headline, now, sleep) {
   // Whatever the headline names is not repeated in the rail.
   const rows = stream.rows.filter((r) => r.id == null || r.id !== headline.eventId);
   const glance = winddown ? 6 : 4;
-  replace('stream', [rows, stream.tomorrow, minuteOf(now), sleep.wakeAt], () => {
+  const night = sleep.phase === 'morning' ? lastNightFor(state, now) : null;
+  replace('stream', [rows, stream.tomorrow, minuteOf(now), sleep.wakeAt, sleep.phase, night], () => {
     const out = rows.map((r, i) => {
       const li = streamRow(r, now, zone, sleep);
       if (i >= glance && r.kind !== 'bed') li.classList.add('extra');
       return li;
     });
+    // The morning opens with the night it just came out of.
+    if (sleep.phase === 'morning') {
+      const li = el('li', `slept${night ? '' : ' missing'}`);
+      li.append(el('p', 'meta', night ? `Last night · woke ${t(night.wakeAt, zone)}` : 'Last night'),
+        el('p', 'title', night?.asleep ? `${night.asleep} asleep` : 'Not recorded'));
+      if (Number.isFinite(night?.score)) li.append(el('p', 'sub', `Eight Sleep score ${night.score}`));
+      else if (!night) li.append(el('p', 'sub', 'No Eight Sleep session'));
+      out.unshift(li);
+    }
     if (stream.tomorrow.length) {
       const brk = el('li', 'day-break');
       brk.append(el('p', 'meta', 'Tomorrow'));
@@ -167,32 +188,7 @@ function renderStream(stream, headline, now, sleep) {
   note.textContent = stream.calendarReady ? '' : 'Calendar update delayed';
 }
 
-// ── right rail ─────────────────────────────────────────────────────────────
-function renderWeatherBlock(m, now, zone) {
-  const d = fresh(m.weather, 'weather', now) ? m.weather.data : null;
-  const sun = sunlightFor(m.astro, now, zone);
-  const call = comfortFor(m.weather, now, zone);
-  replace('weather-block', [d?.hours, call, sun, minuteOf(now) - (minuteOf(now) % 10)], () => {
-    const hours = (d?.hours ?? []).filter((h) => instant(h.at) + 60 * MINUTE > now).slice(1, 6);
-    if (!hours.length && !sun.length) return [];
-    const out = [el('h2', 'rail-label', 'Weather ahead')];
-    if (call) out.push(el('p', 'weather-call', call));
-    const list = el('div', 'hours');
-    for (const h of hours) {
-      const row = el('div', `hour${wet(h.code) ? ' wet' : ''}`);
-      row.append(el('span', 't', t(instant(h.at), zone).replace(':00', '')), el('span', 'g', weatherGlyph(h.code)), el('span', 'v', deg(h.temp)));
-      list.append(row);
-    }
-    out.push(list);
-    if (sun.length) {
-      const s = el('div', 'sun');
-      for (const info of sun) s.append(el('p', info.kind, [info.title, info.detail].filter(Boolean).join(' · ')));
-      out.push(s);
-    }
-    return out;
-  });
-}
-
+// ── focus and what's coming ───────────────────────────────────────────────
 function renderFocus(now) {
   const tasks = focusTasks(state, now, 4);
   $('focus-block').hidden = !tasks.length;
@@ -211,12 +207,12 @@ function renderAhead(m, now, zone) {
   $('ahead-block').hidden = !items.length && week == null;
   replace('ahead', [items, week], () => {
     const out = items.map((i) => {
-      const row = el('div', 'count'), what = el('div', 'what');
-      const name = String(i.label).toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()).replace(/\bSf\b/g, 'SF');
-      what.append(el('span', 'kind', i.kind === 'flight' ? 'Trip' : 'Milestone'), document.createTextNode(name));
+      const row = el('div', 'count');
+      const name = (label) => String(label).toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()).replace(/\bSf\b/g, 'SF');
+      const kind = i.kind === 'flight' ? ['Trip', ...(i.via?.length ? [`via ${i.via.map(name).join(', ')}`] : [])].join(' · ') : 'Milestone';
       const days = el('div', 'days', i.days === 0 ? 'today' : i.days);
       if (i.days) days.append(el('small', '', i.days === 1 ? 'day' : 'days'));
-      row.append(what, days);
+      row.append(el('p', 'kind', kind), el('p', 'what', name(i.label)), days);
       return row;
     });
     if (week != null) {
@@ -309,10 +305,9 @@ function render() {
   const stream = streamFor(state, now, sleep, { allCutoffs: sleep.phase === 'winddown' });
   const headline = headlineFor(state, now, sleep, stream);
   renderClock(now, zone);
-  renderNowWeather(m, now);
+  renderNowWeather(m, now, zone);
   renderHeadline(headline, stream.rows.find((r) => r.kind === 'event' && r.now), now);
   renderStream(stream, headline, now, sleep);
-  renderWeatherBlock(m, now, zone);
   renderFocus(now);
   renderAhead(m, now, zone);
   renderHome(m, now);
