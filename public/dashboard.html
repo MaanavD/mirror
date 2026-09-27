@@ -54,5 +54,10 @@
     <span class="stale-dot" id="stale-dot" hidden></span>
   </main>
   <div class="example-bar" id="example-bar" hidden></div>
+  <!-- Separate on purpose: if a half-copied deploy breaks dashboard.js, the
+       release check still runs and the next complete deploy reloads the page. -->
+  <script type="module">
+    if (!new URLSearchParams(location.search).has('example')) import('/live-updates.js').then((m) => m.startLiveUpdates());
+  </script>
   <script type="module" src="/dashboard.js"></script>
 </body></html>

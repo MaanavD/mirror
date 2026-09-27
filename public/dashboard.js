@@ -348,8 +348,6 @@ if (example) {
   const { exampleState } = await import('./dashboard-examples.js');
   accept(exampleState(example, Date.now()));
 } else {
-  const { startLiveUpdates } = await import('./live-updates.js');
-  startLiveUpdates();
   try { state = JSON.parse(localStorage.getItem(cacheKey)); } catch { state = null; }
   render();
   let polling = false;
