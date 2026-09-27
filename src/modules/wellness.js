@@ -535,6 +535,7 @@ export function emotionFor({ score, hrv, calendarEvents = null, weather = null }
 export function shapeWellness({
   readiness = null,
   alarm = null,
+  alarmAt = null,
   calendar = null,
   weather = null,
   dayWindow = null,
@@ -565,6 +566,7 @@ export function shapeWellness({
     hrv: normalized.hrv,
     nights: normalized.nights ?? null,
     alarm: alarm || null,
+    alarmAt: alarmAt || null,
     subline: parts.join(' · '),
     dayWindow,
   };
@@ -596,7 +598,8 @@ async function fetchLive({ config, now, getModule, log }) {
       try { return normalizeReadiness(readiness); } catch { return null; }
     })()
     : null;
-  const alarm = alarms ? nextAlarm(alarms, { now, timezone }) : null;
+  const alarmDetails = alarms ? nextAlarmDetails(alarms, { now, timezone }) : null;
+  const alarm = alarmDetails ? formatAlarmTime(alarmDetails) : null;
   // The wellness profile owns the target bed time; the service config and the
   // built-in default are honest fallbacks and are labeled as such.
   const profileTarget = readTargetBedtime(config?.wellness?.profileFile ?? DEFAULT_WELLNESS_PROFILE_FILE);
@@ -615,6 +618,7 @@ async function fetchLive({ config, now, getModule, log }) {
   return shapeWellness({
     readiness: normalizedReadiness,
     alarm,
+    alarmAt: alarmDetails?.at?.toISOString() ?? null,
     dayWindow,
     calendar: getModule?.('calendar'),
     weather: getModule?.('weather'),

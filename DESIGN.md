@@ -5,193 +5,91 @@ How the mirror is laid out, why, and how to add to it.
 ## The constraint that decides everything
 
 The panel is behind two-way glass. **Black pixels are a mirror; lit pixels are a
-screen.** So the design problem is not "what looks good on a dark theme", it is
-"how little can be lit and still be useful at 2–5 feet".
-
-Consequences, all non-negotiable:
+screen.** The question is never "what else could we show", it is "what is the
+least that answers the question I have while standing here".
 
 | Rule | Where it lives |
 | --- | --- |
-| `#000` is the only fill. No greys, no tints, no cards, no panels | `styles.css` — nothing sets a background except `#000` |
-| Light on black; one white plus a grey ramp | `--fg`, `--fg-2/3/4`, `--rule` |
-| No large bright areas | Type is large but thin; nothing is filled |
-| Centre stays sparse | `.void` grid row, `min-height: 300px`, always empty |
-| No scrollbars, no cursor, no focus rings | `overflow: hidden`, `cursor: none`, `:focus{outline:none}` |
-| No spinners, ever | There is no loading state in `app.js` — only content or nothing |
-| Slow fades on change | `.body { transition: opacity 900ms }` |
-| Burn-in mitigation | `app.js` nudges `#root` a few px every 10 min, 6s ease |
+| `#000` is the only fill. No cards, no panels | `dashboard.css` |
+| The corridor x 340–740, y 300–1552 is empty — that's you | `dashboard.css` header comment |
+| One thing is said once. Whatever the headline names is not repeated in a rail | `renderStream` in `dashboard.js` |
+| No spinners, no error text. Stale data disappears or says so in one muted line | every renderer returns early |
+| Change fades in, identical data causes no visual event | `replace()` signatures |
+| Burn-in: the canvas drifts ±3px every 10 min | bottom of `dashboard.js` |
 
-The single exception to "no colour": a warm off-white `--tint: #f5efe6` on the
-clock. Set it to `#ffffff` to remove it.
-
-## Chosen direction
-
-Two directions were mocked up first (`public/mockups/`):
-
-- **A · editorial** — broadsheet masthead, display serif, small-caps labels,
-  hairline rules. The clock is the masthead.
-- **B · instrument** — grotesk + mono, tabular numerals, tick marks and
-  micro-dividers, flight-panel feel.
-
-Production is **A**, with one thing stolen from **B**: tabular numerals
-everywhere a number can change (`font-variant-numeric: tabular-nums`), so
-temperatures, times and the clock never shift their neighbours when they update.
-Both mockups stay in the repo as self-contained references — they embed their own
-mock data and need neither the server nor the network.
-
-## Grid
-
-`#root` is a five-row grid at exactly 1080×1920 with 68px padding:
+## Geometry (1080×1920)
 
 ```
 ┌──────────────────────────────── 1080 ────────────────────────────────┐
-│ masthead   clock (244px serif) · hairline · date            ~520px   │  auto
-├──────────────────────────────────────────────────────────────────────┤
-│ weather    13° ⋮⋮ rain / hi·lo   +  6-cell hours strip      ~340px   │  auto
-├──────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│ void       ← the viewer's face and body live here. Empty.            │  1fr
-│                                                                      │
-├──────────────────────────────────────────────────────────────────────┤
-│ lower      today + tomorrow      │      todo by area        ~560px   │  auto
-├──────────────────────────────────────────────────────────────────────┤
-│ quote      hairline · serif italic · author · credit        ~240px   │  auto
+│ 2:10 PM                                              ◐ 14°           │  top band
+│ Sunday, September 27   ■ Flower on                   Partly cloudy   │  y 36–300
+│ ▌NEXT 4:00 PM · in 1h 50m · Video call                               │
+│ ▌FLUX demo dry run                                                   │
+├──────────────┬───────────────────────────────┬───────────────────────┤
+│ REST OF TODAY│                               │ WEATHER AHEAD         │
+│ ◇ 12:30–2:30 │                               │ Rain around 5 PM      │
+│   Last caff. │          (reflection)         │ 3 PM ◐ 15°  …         │  rails
+│ · 2h free    │                               │ WORTH YOUR TIME       │  y 348–1520
+│ □ 7:00 PM    │                               │ COMING UP             │
+│ ◆ 12:30 AM   │                               │ SF Move     18 days   │
+│   Bed → 8:30 │                               │                       │
+├──────────────┴───────────────────────────────┴───────────────────────┤
+│ agents · now playing · Hermy + quote                                 │  y 1552–1872
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-Content is anchored **top** (clock, weather), **left edge** (both lower columns
-start at the left padding; the agenda column is the wider one) and **bottom**
-(quote). The `1fr` void absorbs all slack, so the top block and the bottom block
-are pinned to their edges regardless of how many events or todos exist.
+- **Headline** (`headlineFor` in `day-model.js`) — the single answer to "what
+  matters right now". Priority: starting within 15 min → happening now → the
+  sleep phase (wind-down / bedtime / morning) → next event → clear. One line of
+  context in small type, then the thing itself in large type.
+- **Rest of today** (`streamFor`) — one chronological list on one spine: events,
+  free stretches ≥ 1h between them, the *next* sleep cutoff, bed. When nothing
+  is left before bed, tomorrow's first two events take the space.
+- **Right rail** — what the next hours hold (weather, then tasks, then dates).
+- **Bottom band** — ambient: agents working, music, Hermy's line.
 
-### Type scale
+## Context: phase and linger
 
-Two families, both with offline-safe fallbacks:
+`public/sleep-model.js` turns the calendar and Eight Sleep into one night
+schedule, shared by the browser and `src/night-guard.js`, so the bed time on the
+glass is the bed time the hardware obeys.
 
-- `--serif` — Playfair Display *if installed or self-hosted*, else Iowan Old
-  Style / Palatino / Georgia. The `@font-face` uses `local()` sources only, so
-  there is no network font fetch to fail. To self-host, drop a woff2 into
-  `public/fonts/` and add a `url()` src.
-- `--mono` — `ui-monospace` stack, used by the instrument mockup and available
-  for any future tabular block.
-
-| Role | Size | Colour |
+| Phase | When | What changes |
 | --- | --- | --- |
-| clock | 244 | `--tint` |
-| weather temp | 132 | `--fg` |
-| quote | 44 | `--fg-2` |
-| date | 40 | `--fg-2` |
-| hours temp | 40 | `--fg` |
-| event title | 36 | `--fg` |
-| todo item | 32 | `--fg-2` |
-| event time | 30 | `--fg-3` |
-| section label | 21 small-caps, 0.3em tracking | `--fg-3` |
-| credit | 15 | 9% white |
+| `morning` | wake → +3h | Headline: last night's sleep + first commitment |
+| `day` | — | Default |
+| `winddown` | bed − 2h → bed | Warm palette (no blue), tasks and agents hidden, rail becomes "Tonight" with every remaining cutoff |
+| `bedtime` | bed → bed + 30m | Clock and "Sleep now: 7h 40m" only, dimmed |
+| `night` | → wake | Panel held dark by the guard; if released, the same minimal face, dimmer |
 
-Nothing is smaller than 15px, and the only 15px thing is the ZenQuotes credit,
-which is required to exist but not required to be read from across the room.
+**Linger**: standing at the mirror for 8s (`sensors.present`) adds a second
+layer — more stream rows, all four tasks, agent task names, light levels.
+Everything in the first layer must stand on its own.
 
-### Staleness, the only status UI
+## Type and colour
 
-`#dot` — a 9px dot, bottom-right, `opacity: 0.25`, 2s fade. It appears when any
-module in `/api/state` has `stale: true`. That is the entire vocabulary: no
-badges, no timestamps, no "reconnecting", no error text.
-
-Staleness is **age-based**, not attempt-based (`src/cache.js#isStale`): a module
-is stale when its last good data is older than its window (weather 45 min,
-calendar/notion 20 min, quote 36 h). A single failed fetch therefore does not
-light the dot — two or three missed cycles do. A restart that finds recent data
-in `data/cache.json` starts clean.
+VT323 for everything read, Press Start 2P only for small section labels and the
+headline keyword. Palette tokens in `:root`; `body.warm` swaps them for the
+evening. Sizes: clock 140, headline 50, rail titles 27–29, meta 20–22. Nothing
+below 20px except pixel-font labels (12–14px, which read larger).
 
 ## Data flow
 
 ```
 scheduler ──▶ store.refresh(name) ──▶ module.fetch({config, now, previous, log})
-                    │                        │
-                    │                        └── throws ⇒ keep last-good, age into stale
+night-guard ─▶ store.setSleep()             └── throws ⇒ keep last-good, age into stale
                     ▼
-              store (the /api/state blob) ──▶ SSE subscribers ──▶ browser
-                    │
-                    └──▶ DiskCache (data/cache.json, atomic write)
+              store (/api/state) ──▶ SSE ──▶ dashboard.js render() every 5s + on change
 ```
-
-On the client: clock paints → `localStorage` paints → `/api/state` paints → SSE
-takes over (60s polling if it drops). Each module body cross-fades only when its
-payload actually changed (`JSON.stringify` signature), so a refresh that returns
-identical data causes no visual event at all.
 
 ## Adding a module
 
-Five steps. Weather is the shortest example to copy.
-
-**1. Write the module** — `src/modules/transit.js`:
-
-```js
-export const transitModule = {
-  name: 'transit',
-  refreshMs: 2 * 60_000,        // or: nextRunAt(now, config) for wall-clock cadence
-  staleAfterMs: 10 * 60_000,
-
-  async fetch({ config, now, previous, log }) {
-    const raw = await fetchJson(url, { timeoutMs: config.fetchTimeoutMs });
-    return shapeTransit(raw, { now, timeZone: config.timezone });  // pure, testable
-  },
-
-  mock({ config, now }) {
-    return shapeTransit(mockRaw(), { now, timeZone: config.timezone });
-  },
-};
-```
-
-Rules that keep the mirror trustworthy:
-
-- Keep the shaping function pure and separate from `fetch` — that is what tests
-  can reach without a network.
-- **Throw** on an unusable payload. Throwing preserves last-good data; returning
-  a half-empty object overwrites it.
-- Return only what the panel renders. `/api/state` is not a data lake.
-- `mock()` must be as varied as a real bad day (empty lists, long strings,
-  missing fields) — it is the only way the layout gets stress-tested.
-
-**2. Register it** — `src/modules/index.js`:
-
-```js
-export const modules = [weatherModule, calendarModule, quoteModule, notionModule, transitModule];
-```
-
-That is all the server needs: the store hydrates it from disk, the scheduler
-picks up its cadence, `/api/state` and SSE include it, and `/healthz` reports it.
-
-**3. Give it a home in the markup** — `public/index.html`, inside the row that
-suits it (top for glanceable numbers, lower deck for lists, never the `.void`):
-
-```html
-<section class="col" id="transit" data-module="transit">
-  <div class="label">transit</div>
-  <hr class="rule" />
-  <div class="body"></div>
-</section>
-```
-
-**4. Render it** — `public/app.js`: add the `.body` to `bodies`, add a renderer
-to `renderers`. Build nodes with `el()` / `textContent` (never `innerHTML`), and
-return early when the data is missing so the module simply is not there.
-
-**5. Style it** — `public/styles.css`, reusing the tokens. If you find yourself
-adding a colour or a background, the design has gone wrong.
-
-Optional: add env keys to `config.js` **and** `.env.example` with a comment, and
-a pure-function test in `test/`.
-
-## Testing
-
-`node --test`, no framework. The three suites cover the logic most likely to be
-silently wrong for weeks:
-
-- `test/wmo.test.js` — code→text/glyph mapping, unknown-code fallback, glyphs
-  restricted to a vetted non-emoji character set, intensity escalates within a
-  precipitation family.
-- `test/quote.test.js` — tone filter, API-down fallback, rate-limit notice
-  rejection, per-day determinism.
-- `test/cache.test.js` — staleness boundaries, clock skew, corrupt/missing cache
-  files, disk round-trip, atomic write leaves no temp files.
+1. `src/modules/<name>.js` exporting `{ name, refreshMs, staleAfterMs, fetch, mock }`.
+   Keep shaping pure; **throw** on an unusable payload so last-good survives.
+2. Register it in `src/modules/index.js`; add its freshness window to
+   `WINDOWS` in `public/attention.js`.
+3. Render it in `dashboard.js` with `replace(id, signature, build)` into a
+   container in `dashboard.html`. Pick the band by the question it answers:
+   *now* → headline, *later today* → stream row, *ambient* → bottom band.
+   Never the corridor.
+4. Add an `?example=` scenario in `dashboard-examples.js` and a pure test.

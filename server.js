@@ -3,6 +3,7 @@ import express from 'express';
 import config from './src/config.js';
 import { DiskCache } from './src/cache.js';
 import { DisplayController, requireDisplayToken } from './src/display.js';
+import { NightGuard } from './src/night-guard.js';
 import { createLogger } from './src/logger.js';
 import modules from './src/modules/index.js';
 import { createPresenceHandler } from './src/presence.js';
@@ -11,7 +12,7 @@ import { Scheduler } from './src/scheduler.js';
 import { createEventStream } from './src/sse.js';
 import { Store } from './src/store.js';
 import { Voice } from './src/voice.js';
-import { mountLiveDashboard } from './src/frontend-release.js';
+import { mountLiveDashboard, RELEASE_FILES } from './src/frontend-release.js';
 import { dashboardState } from './src/dashboard-state.js';
 
 const log = createLogger('mirror');
@@ -27,6 +28,7 @@ const sensors = { present: null, lux: null, updatedAt: null };
 const sensorHandler = createSensorHandler({ events, state: sensors, log: createLogger('sensors') });
 const display = new DisplayController({ config, store, log: createLogger('display') });
 const voice = new Voice({ config, log: createLogger('voice') });
+const night = new NightGuard({ config, store, display, log: createLogger('night') });
 
 const app = express();
 app.disable('x-powered-by');
@@ -98,7 +100,9 @@ app.post('/api/display/manual', requireDisplayToken(config), async (req, res) =>
     if (mode !== 'on') return res.status(400).json({ error: 'percent requires mode on' });
   }
 
-  return res.json(await display.manual(mode, { percent, durationSec }));
+  const result = await display.manual(mode, { percent, durationSec });
+  night.noteManual(mode);
+  return res.json(result);
 });
 
 // Hermy.EXE dialogue: push a short output-only message to the mirror.
@@ -141,6 +145,7 @@ app.get('/healthz', (_req, res) => {
     uptimeSec: Math.round(process.uptime()),
     sseClients: events.size,
     display: { on: store.displayOn },
+    sleep: store.snapshot().sleep,
     modules: store.status(),
   });
 });
@@ -151,9 +156,8 @@ app.get('/healthz', (_req, res) => {
 
 mountLiveDashboard(app, config.publicDir);
 
-app.get('/preview', (_req, res) => {
-  res.sendFile(path.join(config.publicDir, 'preview.html'));
-});
+// Any non-kiosk view scales the 1080×1920 canvas to fit the window.
+app.get('/preview', (_req, res) => res.redirect(302, '/dashboard'));
 
 app.use(
   express.static(config.publicDir, {
@@ -161,10 +165,7 @@ app.use(
     setHeaders(res, filePath) {
       // Hot-swapped dashboard files must reflect deploys immediately. Other
       // static assets keep a short cache because they are not hot-swapped.
-      const noStore = filePath.endsWith('.html')
-        || ['app.js', 'styles.css', 'hermy_sprites.png', 'dashboard.js', 'dashboard.css',
-          'attention.js', 'day-model.js', 'dashboard-examples.js', 'live-updates.js',
-          'hermy-sheet-v4.png'].includes(path.basename(filePath));
+      const noStore = filePath.endsWith('.html') || RELEASE_FILES.includes(path.basename(filePath));
       res.set('Cache-Control', noStore ? 'no-store' : 'public, max-age=300');
     },
   }),
@@ -200,7 +201,7 @@ const server = app.listen(config.port, config.host, () => {
 // and disk-cached data is already being served.
 store.refreshAll('boot').then(() => log.info('initial refresh complete'));
 scheduler.start();
-display.startSchedule();
+night.start();
 
 // Hermy's ears: after every publish, look for transitions worth speaking
 // about (readiness extremes, weather battles, flight day, area clean).
@@ -212,7 +213,7 @@ async function shutdown(signal) {
   shuttingDown = true;
   log.info(`${signal} — shutting down`);
   scheduler.stop();
-  display.stop();
+  night.stop();
   events.closeAll();
   await cache.close();
   server.close(() => process.exit(0));

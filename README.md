@@ -29,9 +29,9 @@ npm run dev            # MOCK=1, watch mode
 ```
 
 - `http://localhost:8390/` — the dashboard (looks correct only at 1080×1920)
-- `http://localhost:8390/preview` — same page inside a scaled 1080×1920 frame
-- `http://localhost:8390/mockups/editorial.html` — design direction A
-- `http://localhost:8390/mockups/instrument.html` — design direction B
+- `http://localhost:8390/dashboard` — the same canvas scaled to fit any window
+- `http://localhost:8390/dashboard?example=<kind>` — pinned scenarios: `day`, `now`,
+  `soon`, `morning`, `winddown`, `bedtime`, `quiet`, `agents`, `linger`, `stale`
 - `http://localhost:8390/healthz` — per-module fetch status
 
 Mock mode serves a full varied day: all-day + timed events across today and
@@ -92,8 +92,10 @@ reference; the table below is the summary.
 | `DISPLAY_TOKEN` | — | Bearer token for `/api/display/*`; empty ⇒ 503 |
 | `PI_AGENT_URL` | — | e.g. `http://pi.tailnet:8420`; empty ⇒ soft state only |
 | `PI_AGENT_TOKEN` | — | Must match the Pi's |
-| `DISPLAY_OFF_TIME` | `00:30` | Scheduled blackout, local `HH:MM` |
-| `DISPLAY_ON_TIME` | — | Optional scheduled wake |
+| `SLEEP_LATEST_BED` | `00:30` | Latest planned bed time (falls back to `DISPLAY_OFF_TIME`) |
+| `SLEEP_LOCK_GRACE_MIN` | `30` | Minutes after bed before presence stops waking the panel |
+| `SLEEP_HOURS` | `8` | Wake = bed + this, unless an Eight Sleep alarm is enabled |
+| `SLEEP_GUARD` | `1` | `0` keeps the night schedule on the glass but never holds the panel dark |
 | `MOCK` | `0` | `1` ⇒ every module serves mock data |
 
 Refresh cadences are code, not config: weather 15 min, calendar 5 min, notion
@@ -323,8 +325,21 @@ kiosk over SSE, nothing more. Body fields are all optional — `present` (defaul
 `true`), `source`, `holdMs`. Between 22:30 and 05:00 the mirror is in `night` and
 ignores the escalation, and `prefers-reduced-motion` disables it everywhere.
 
-`DISPLAY_OFF_TIME` (default 00:30) is a scheduled fallback so the mirror never
-stays lit all night. Waking is external.
+### The night lock
+
+`src/night-guard.js` keeps the panel dark while you sleep. The schedule
+(`public/sleep-model.js`, shared with the dashboard) is:
+
+- **bed** = first meeting tomorrow − 8.5h, never later than `SLEEP_LATEST_BED` (00:30)
+- **night** starts `SLEEP_LOCK_GRACE_MIN` after bed and lasts until **wake**: the
+  enabled Eight Sleep alarm, or bed + `SLEEP_HOURS`
+
+During the night the guard parks a manual "off" hold on the pi-agent that
+expires at wake time. It only arms once the panel is already off, so being at
+the mirror past bedtime never blanks it; walking away does. Waking in the
+night, lights, getting up — none of it wakes the glass. Only a manual
+`POST /api/display/manual {"mode":"on"}` releases a night early.
+`/api/state.sleep` and `/healthz` show the current phase.
 
 ### Eight Sleep → display on
 
@@ -377,9 +392,8 @@ curl -fsS -X POST http://HOST:8390/api/display/on \
 | `POST` | `/api/say` | Push a line of Hermy dialogue. Bearer `DISPLAY_TOKEN` |
 | `POST` | `/api/presence` | "Someone is at the mirror" — runs the animations at full intensity for 90s. Bearer `DISPLAY_TOKEN` |
 | `GET` | `/healthz` | Per-module ok/error/age, SSE client count |
-| `GET` | `/preview` | Scaled 1080×1920 frame (dev) |
-| `GET` | `/mockups/editorial.html` | Design direction A |
-| `GET` | `/mockups/instrument.html` | Design direction B |
+| `POST` | `/api/display/manual` | `{mode:on|off|auto, duration_s?, percent?}` hold. Bearer `DISPLAY_TOKEN` |
+| `GET` | `/dashboard` | The mirror page; `?view=mirror` is the kiosk, `?example=` scenarios |
 
 `/api/state`:
 
@@ -444,7 +458,8 @@ src/
   store.js             the /api/state blob, subscribers, refresh orchestration
   scheduler.js         interval + wall-clock cadences
   sse.js               GET /api/events
-  display.js           bearer auth, soft state, Pi relay, schedule
+  display.js           bearer auth, soft state, Pi relay and holds
+  night-guard.js       keeps the panel dark during the night phase
   http.js              fetch with hard timeouts
   time.js              Intl-only timezone math
   logger.js
@@ -458,10 +473,11 @@ src/
     quotes-fallback.json
     notion.js          todos (stub until the DB is shared)
 public/
-  index.html app.js styles.css   the dashboard
-  preview.html                   scaled dev frame
-  mockups/editorial.html         design direction A
-  mockups/instrument.html        design direction B
+  dashboard.html/.css/.js         the mirror page (hot-reloads on deploy)
+  day-model.js                    headline + "rest of today" stream (pure)
+  sleep-model.js                  the night schedule, shared with the server
+  attention.js                    freshness + calendar helpers
+  dashboard-examples.js           ?example= scenarios
 pi-agent/agent.js      zero-dep display power relay for the Pi
 systemd/               mirror-server · mirror-kiosk · pi-agent units
 test/                  node --test: wmo, quote fallback, cache staleness

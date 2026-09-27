@@ -1,7 +1,6 @@
 import crypto from 'node:crypto';
 import { fetchJson, fetchText } from './http.js';
 import { createLogger } from './logger.js';
-import { localDateKey, localTimeLabel } from './time.js';
 
 /** Constant-time compare over digests so lengths can differ safely. */
 export function tokensMatch(expected, provided) {
@@ -42,8 +41,6 @@ export class DisplayController {
   #config;
   #store;
   #log;
-  #timer = null;
-  #fired = new Map();
 
   constructor({ config, store, log = createLogger('display') }) {
     this.#config = config;
@@ -125,38 +122,12 @@ export class DisplayController {
     return { ok: true, on: next, source, ...result };
   }
 
-  startSchedule() {
-    if (this.#timer) return;
-    const { offTime, onTime } = this.#config.display;
-    const check = () => {
-      const now = new Date();
-      const tz = this.#config.timezone;
-      const label = localTimeLabel(now, tz);
-      const day = localDateKey(now, tz);
-      const at = (t) => `${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')}`;
-
-      // Once per day per trigger, even if the tick fires twice in a minute.
-      if (offTime && label === at(offTime) && this.#fired.get('off') !== day) {
-        this.#fired.set('off', day);
-        this.set(false, { source: 'schedule' }).catch(() => {});
-      }
-      if (onTime && label === at(onTime) && this.#fired.get('on') !== day) {
-        this.#fired.set('on', day);
-        this.set(true, { source: 'schedule' }).catch(() => {});
-      }
-    };
-    this.#timer = setInterval(check, 20_000);
-    this.#timer.unref?.();
-    this.#log.info(
-      `schedule: off ${offTime ? `${offTime.hour}:${String(offTime.minute).padStart(2, '0')}` : 'never'}` +
-        `, on ${onTime ? `${onTime.hour}:${String(onTime.minute).padStart(2, '0')}` : 'external only'}`,
-    );
+  /** Guard-owned hold: the same Pi override as manual(), without a person. */
+  async hold(mode, durationSec) {
+    if (mode === 'off') this.#store.setDisplay(false);
+    return this.relayManual(mode === 'auto' ? { mode } : { mode, duration_s: durationSec });
   }
 
-  stop() {
-    if (this.#timer) clearInterval(this.#timer);
-    this.#timer = null;
-  }
 }
 
 export default DisplayController;

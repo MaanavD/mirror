@@ -2,7 +2,7 @@
 export const MINUTE = 60_000;
 const WINDOWS = { calendar: 20, notion: 20, weather: 45, leaveby: 15,
   aqi: 60, astro: 180, wellness: 180, countdown: 360, spotify: 2, nanoleaf: 1,
-  news: 45, quote: 2160, hermy: 20, chipdrop: 1440, mystery: 10080, workboard:20, progress:20, agents:.5 };
+  news: 45, quote: 2160, hermy: 20, workboard:20, progress:20, agents:.5 };
 export const instant = (value) => value == null || value === '' ? NaN
   : typeof value === 'number' ? value : Date.parse(value);
 export function fresh(entry, name, now = Date.now()) {

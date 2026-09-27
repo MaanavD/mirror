@@ -3,8 +3,9 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 // Content-based, so copying files into a running server also publishes a release.
-const files = ['dashboard.html', 'dashboard.css', 'dashboard.js', 'live-updates.js',
-  'attention.js', 'day-model.js', 'dashboard-examples.js', 'hermy-sheet-v4.png'];
+export const RELEASE_FILES = ['dashboard.html', 'dashboard.css', 'dashboard.js', 'live-updates.js',
+  'attention.js', 'day-model.js', 'sleep-model.js', 'dashboard-examples.js', 'hermy-sheet-v4.png'];
+const files = RELEASE_FILES;
 
 export async function readFrontendRelease(publicDir) {
   const contents = await Promise.all(files.map(file => readFile(path.join(publicDir, file))));

@@ -30,3 +30,5 @@ pi-agent/radar_tune.py
 pi-agent/raw_dump.py
 pi-agent/sensor_status.py
 public/shots/
+__pycache__/
+*.pyc

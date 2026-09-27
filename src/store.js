@@ -5,7 +5,7 @@ import { createLogger } from './logger.js';
  * The single source of truth behind GET /api/state.
  *
  * Shape (contract with the frontend — keep it boring):
- *   { generatedAt, modules: { <name>: { data, fetchedAt, stale } }, display: { on } }
+ *   { generatedAt, modules: { <name>: { data, fetchedAt, stale } }, display: { on }, sleep }
  *
  * A module never crashes the process: a failed refresh keeps the last-good data
  * and lets it age into `stale: true`.
@@ -31,6 +31,7 @@ export class Store {
       generatedAt: new Date().toISOString(),
       modules: {},
       display: { on: true },
+      sleep: null,
     };
 
     // Hydrate from disk so the very first /api/state is useful even offline.
@@ -88,7 +89,7 @@ export class Store {
   }
 
   #computeSignature() {
-    return JSON.stringify({ modules: this.#state.modules, display: this.#state.display });
+    return JSON.stringify({ modules: this.#state.modules, display: this.#state.display, sleep: this.#state.sleep });
   }
 
   /** Publishes only when something a viewer could notice actually changed. */
@@ -113,6 +114,12 @@ export class Store {
     this.#cache.set('display', { on: this.#state.display.on, fetchedAt: Date.now() });
     this.#publish();
     return this.#state.display.on;
+  }
+
+  /** The night schedule (src/night-guard.js); published only when it changes. */
+  setSleep(sleep) {
+    this.#state.sleep = sleep ?? null;
+    return this.#publish();
   }
 
   get displayOn() {

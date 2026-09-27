@@ -228,21 +228,6 @@ test('setAlarm is an explicit disabled write stub', () => {
   else process.env.ENABLE_EIGHTSLEEP_WRITE = previous;
 });
 
-test('wellness is registered below countdown and stays in the right rail', () => {
-  const html = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
-  const app = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
-  const css = readFileSync(new URL('../public/styles.css', import.meta.url), 'utf8');
-  const countdownAt = html.indexOf('id="countdown-line"');
-  const wellnessAt = html.indexOf('id="wellness-line"');
-  const railAt = html.indexOf('<div class="rail">');
-  const faceAt = html.indexOf('<div class="face"');
-  assert.ok(railAt < countdownAt && countdownAt < wellnessAt && wellnessAt < faceAt);
-  assert.match(app, /wellness:\s*\[q\('#wellness-line'\)\]/);
-  assert.match(app, /wellness:\s*renderWellness/);
-  assert.match(css, /\.wellness-window\s*\{[\s\S]*margin-left:\s*24px/);
-  assert.match(css, /\.wellness-subline\s*\{[\s\S]*font-size:\s*16px[\s\S]*text-overflow:\s*ellipsis/);
-});
-
 test('mock data produces the requested exact subline', () => {
   const data = wellnessModule.mock({ now: NOW });
   assert.equal(data.subline, 'HRV 62 · SLEEP 78 · ALARM 6:40A');
@@ -331,7 +316,7 @@ test('a bedtime recommendation outside the waking day falls back to an ordered e
 // Keep the pure shape contract visible to future changes.
 test('shapeWellness exposes the renderer and day-window contracts', () => {
   assert.deepEqual(Object.keys(shapeWellness({ readiness: { score: 78, hrv: 62 }, alarm: '6:40A' })).sort(), [
-    'alarm', 'dayWindow', 'emotion', 'hrv', 'nights', 'score', 'subline',
+    'alarm', 'alarmAt', 'dayWindow', 'emotion', 'hrv', 'nights', 'score', 'subline',
   ]);
 });
 
@@ -423,25 +408,3 @@ test('the target bed time comes from the wellness profile and is labeled as a ta
   }
 });
 
-test('the dashboard renders an always-visible sleep line outside the Around you panel', () => {
-  const html = readFileSync(new URL('../public/dashboard.html', import.meta.url), 'utf8');
-  const app = readFileSync(new URL('../public/dashboard.js', import.meta.url), 'utf8');
-  const css = readFileSync(new URL('../public/dashboard.css', import.meta.url), 'utf8');
-  const masthead = html.indexOf('class="masthead"');
-  const lights = html.indexOf('id="room-lights"');
-  const sleep = html.indexOf('id="sleep-line"');
-  const cutoffs = html.indexOf('id="sleep-cutoffs"');
-  const timeline = html.indexOf('class="day-timeline"');
-  const details = html.indexOf('id="details-panel"');
-  assert.ok(masthead < lights && lights < sleep && sleep < timeline, 'the sleep line must sit in the masthead');
-  assert.ok(sleep < details, 'the sleep line is not inside the Around you panel');
-  assert.ok(cutoffs < timeline, 'the cutoff block stays before the day bar in the document');
-  assert.match(app, /renderSleep\(m,now,model\.timeZone\)/);
-  assert.match(app, /replace\('sleep-line'/);
-  assert.match(app, /\$\('sleep-line'\)/);
-  assert.match(app, /sleepPlanFor\(state\?\.modules\?\.calendar/);
-  assert.match(app, /timeline-cutoff/);
-  assert.match(css, /\.sleep-line\s*\{[\s\S]*?display:\s*flex/);
-  assert.match(css, /\.mirror\s+#sleep-cutoffs\s*\{\s*display:\s*none/);
-  assert.match(css, /\.mirror\s+\.day-timeline\s*\{[\s\S]*?display:\s*block/);
-});

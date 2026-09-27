@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { flightLabel, daysUntil, shapeCountdown, countdownModule } from '../src/modules/countdown.js';
 
 const TZ = 'America/Los_Angeles';
@@ -62,18 +61,3 @@ test('mock renders both kinds so the layout can be reviewed offline', () => {
   assert.equal(data.items[1].kind, 'milestone');
 });
 
-// Layout guard: the countdown lives inside the right rail, whose row clips at
-// the corridor's top band — so all it must promise is that it stays a single
-// hidden-overflow column and never forces the rail wider.
-test('the countdown stack stays inside the rail', () => {
-  const css = readFileSync(new URL('../public/styles.css', import.meta.url), 'utf8');
-  const rule = /\.countdown-strip\s*\{([^}]*)\}/.exec(css);
-  assert.ok(rule, '.countdown-strip rule missing');
-  assert.match(rule[1], /flex-direction:\s*column/);
-  assert.match(rule[1], /overflow:\s*hidden/);
-  const html = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
-  const railAt = html.indexOf('<div class="rail">');
-  const cdAt = html.indexOf('id="countdown-line"');
-  const faceAt = html.indexOf('<div class="face"');
-  assert.ok(railAt !== -1 && cdAt > railAt && cdAt < faceAt, 'countdown-line must live inside the right rail');
-});

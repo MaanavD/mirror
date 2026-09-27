@@ -101,6 +101,17 @@ export const config = {
     targetBedtime: str('TARGET_BEDTIME', '23:30'),
   },
 
+  // The night (public/sleep-model.js). Bed is the first meeting tomorrow minus
+  // 8.5h, never later than SLEEP_LATEST_BED; the panel locks dark SLEEP_LOCK_GRACE_MIN
+  // after bed until the Eight Sleep alarm, or bed + 8h without one.
+  sleep: {
+    bedtime: parseClockTime(str('SLEEP_LATEST_BED', str('DISPLAY_OFF_TIME', '00:30'))) ?? { hour: 0, minute: 30 },
+    lockGraceMinutes: num('SLEEP_LOCK_GRACE_MIN', 30),
+    sleepHours: num('SLEEP_HOURS', 8),
+    // SLEEP_GUARD=0 keeps the schedule on the glass but never holds the panel dark.
+    guard: flag('SLEEP_GUARD', true),
+  },
+
   countdown: {
     // "label:YYYY-MM-DD,label:YYYY-MM-DD" — expired milestones self-remove.
     milestones: (() => {
@@ -129,8 +140,6 @@ export const config = {
     token: str('DISPLAY_TOKEN'),
     piAgentUrl: str('PI_AGENT_URL').replace(/\/+$/, ''),
     piAgentToken: str('PI_AGENT_TOKEN'),
-    offTime: parseClockTime(str('DISPLAY_OFF_TIME', '00:30')) ?? { hour: 0, minute: 30 },
-    onTime: parseClockTime(str('DISPLAY_ON_TIME')),
     // Kept under the 10s global ceiling: a POST /api/display/* must not hang.
     relayTimeoutMs: 5_000,
   },

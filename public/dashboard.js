@@ -1,387 +1,391 @@
-import { fresh, ageLabel, dateKey, timeLabel, instant, agendaFor, tasksFor, horizonFor, buildAttention, sunlightFor, MINUTE } from './attention.js?v=10';
-import {lightingFor, localInstant, timelineFor, showTimeline, focusTasks, comfortFor, briefFor, sleepPlanFor} from './day-model.js?v=11';
+import { fresh, dateKey, timeLabel, instant, horizonFor, sunlightFor, MINUTE } from './attention.js';
+import { lightingFor, streamFor, headlineFor, focusTasks, comfortFor, durationLabel } from './day-model.js';
+import { sleepSchedule, scheduleFromState, phaseAt } from './sleep-model.js';
 
-const $ = id => document.getElementById(id);
+/*
+  Renders /api/state onto the glass. Three inputs decide what shows:
+    phase    (sleep-model)  day · winddown · bedtime · night · morning
+    linger   (presence)     standing at the mirror ≥ 8s reveals the second layer
+    data     (modules)      a module that is stale or empty simply isn't there
+*/
+
+const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const mirror = params.get('view') === 'mirror';
 const example = params.get('example');
-const preview = params.get('preview') === '1';
-document.body.classList.toggle('mirror', mirror);
-const storageKey = 'hermy.brief.preferences.v1';
 const cacheKey = 'hermy.brief.state.v1';
-function load(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } }
-let preferences = example ? {} : load(storageKey, {});
-if (!preferences || typeof preferences !== 'object' || Array.isArray(preferences)) preferences = {};
-preferences.snoozed ??= {};
-let state = null, sensors = null, day = 'today', expandedTasks = false, connected = false;
-let spoken = null, lastClock = '', toastTimer, speechTimer, presenceSince=null;
-const viewStartedAt=Date.now();
-let agentHover=false,agentFocus=false;
+const LINGER_MS = 8_000;
+
+let state = null;
+let spoken = null;
+let presentSince = null;
+let lastClock = '';
+let speechTimer;
 const signatures = new Map();
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+
+// ── helpers ────────────────────────────────────────────────────────────────
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = String(text);
+  return n;
+}
 function reveal(target) {
   if (reducedMotion.matches || document.hidden) return;
-  target.getAnimations().forEach(a=>a.cancel());
-  target.animate([{opacity:.35,transform:'translateY(5px)'},{opacity:1,transform:'translateY(0)'}],{duration:320,easing:'cubic-bezier(.2,.7,.2,1)'});
+  target.getAnimations().forEach((a) => a.cancel());
+  target.animate([{ opacity: 0.35, transform: 'translateY(5px)' }, { opacity: 1, transform: 'none' }],
+    { duration: 420, easing: 'cubic-bezier(.2,.7,.2,1)' });
 }
-const labels = { calendar:'Calendar', weather:'Weather', notion:'Reminders', wellness:'Sleep',
-  leaveby:'Travel estimates', countdown:'Upcoming dates', spotify:'Music', nanoleaf:'Lights',
-  news:'Reading', quote:'Daily quote', astro:'Daylight', aqi:'Air quality' };
-function el(tag, cls, text) {
-  const n = document.createElement(tag); if (cls) n.className=cls;
-  if (text != null) n.textContent=String(text); return n;
-}
+/** Rebuild a region only when what it shows actually changed. */
 function replace(id, signature, build) {
   const sig = JSON.stringify(signature);
   if (signatures.get(id) === sig) return;
-  signatures.set(id,sig);
-  const target=$(id), focusKey=target.contains(document.activeElement) ? document.activeElement.dataset.focusKey : null;
-  const previousContent=target.textContent;
-  target.replaceChildren(...build());
-  if(previousContent!==target.textContent) reveal(target);
-  if (focusKey) [...target.querySelectorAll('[data-focus-key]')].find(n=>n.dataset.focusKey===focusKey)?.focus({preventScroll:true});
+  signatures.set(id, sig);
+  const target = $(id);
+  const before = target.textContent;
+  target.replaceChildren(...build().filter(Boolean));
+  if (before && before !== target.textContent) reveal(target);
 }
-function button(text, action, cls='text-button') {
-  const n=el('button',cls,text); n.type='button';n.addEventListener('click',action);return n;
+const t = (value, zone) => timeLabel(value, zone);
+const minuteOf = (now) => Math.floor(now / MINUTE);
+function relative(at, now) {
+  const ms = at - now;
+  if (ms <= MINUTE) return 'now';
+  return ms < 60 * MINUTE ? `in ${Math.ceil(ms / MINUTE)} min` : `in ${durationLabel(ms)}`;
 }
-function save() { if (!example) try { localStorage.setItem(storageKey,JSON.stringify(preferences)); } catch {} }
-function toast(text) { $('toast').textContent=text;$('toast').hidden=false;reveal($('toast'));clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,3500); }
-function weatherGlyph(code) { return code===0?'☀':code<=2?'◐':code<=3?'☁':code<=48?'≋':code>=71&&code<=77?'❄':code>=95?'ϟ':'☂'; }
-function quantity(v,suffix='') { return Number.isFinite(v) ? `${Math.round(v)}${suffix}` : '—'; }
-function noteFor(name, now) {
-  const entry=state?.modules?.[name];
-  return `${fresh(entry,name,now)?'':'Update delayed · '}${ageLabel(entry?.fetchedAt,now)}`;
+function weatherGlyph(code) {
+  return code === 0 ? '☀' : code <= 2 ? '◐' : code <= 3 ? '☁' : code <= 48 ? '≋'
+    : code >= 71 && code <= 77 ? '❄' : code >= 95 ? 'ϟ' : '☂';
 }
-function clock(now, zone) {
-  const date=new Date(now);
-  const text=timeLabel(now,zone);
-  if(lastClock===text) return; lastClock=text;
-  const parts=new Intl.DateTimeFormat('en-US',{timeZone:zone,hour:'numeric',minute:'2-digit',hour12:true}).formatToParts(date);
-  $('time').textContent=parts.filter(p=>['hour','minute','literal'].includes(p.type)).map(p=>p.value).join('').trim();
-  $('period').textContent=parts.find(p=>p.type==='dayPeriod')?.value??'';
-  $('date').textContent=new Intl.DateTimeFormat('en-US',{timeZone:zone,weekday:'long',month:'long',day:'numeric'}).format(date);
-  const hour=Number(new Intl.DateTimeFormat('en-US',{timeZone:zone,hour:'numeric',hourCycle:'h23'}).format(date));
-  $('greeting').textContent=hour<4?'A quiet night, Maanav.':`Good ${hour<12?'morning':hour<17?'afternoon':'evening'}, Maanav.`;
-  document.body.classList.toggle('night',mirror&&(hour>=23||hour<5));
+const deg = (v) => (Number.isFinite(v) ? `${Math.round(v)}°` : '—');
+const wet = (code) => code >= 51 && code <= 99;
+
+// ── context ────────────────────────────────────────────────────────────────
+function scheduleNow(now, zone) {
+  const fromServer = scheduleFromState(state?.sleep);
+  if (fromServer) return { ...fromServer, phase: phaseAt(fromServer, now) };
+  const m = state?.modules ?? {};
+  return sleepSchedule({ now, zone, calendar: m.calendar, wellness: m.wellness });
 }
-function renderWeather(m, now, zone) {
-  const entry=m.weather,data=entry?.data,isFresh=fresh(entry,'weather',now);
-  replace('weather-body',[data,isFresh,m.astro?.data,Math.floor(now/MINUTE)],()=>{
-    if(!data?.current) return [el('p','empty','Weather is unavailable right now.')];
-    const summary=el('div','weather-summary');
-    const glyph=el('span','weather-icon',weatherGlyph(data.current.code));glyph.setAttribute('aria-hidden','true');
-    summary.append(glyph,el('span','temperature',quantity(data.current.temp,'°')));
-    const desc=el('div','weather-description');desc.append(el('p','',isFresh?data.current.text:'Last reported'),el('p','',`H ${quantity(data.today?.hi,'°')}  ·  L ${quantity(data.today?.lo,'°')}`));summary.append(desc);
-    const out=[summary];
-    const comfort=comfortFor(entry,now,zone);if(comfort)out.push(el('p','weather-comfort',comfort));
-    if(isFresh){
-      const forecast=el('div','forecast');
-      for(const h of (data.hours??[]).filter(h=>instant(h.at)+60*MINUTE>now).slice(0,5)) {
-        const cell=el('div','forecast-hour');cell.append(el('span','',timeLabel(instant(h.at),zone).replace(':00','')),el('span','symbol',weatherGlyph(h.code)),el('strong','',quantity(h.temp,'°')));forecast.append(cell);
-      }
-      out.push(forecast);
-      const sunlight=sunlightFor(m.astro,now,zone);
-      if(sunlight.length){const group=el('div','sun-times');for(const info of sunlight){const row=el('div',`sun-context ${info.kind}`);row.append(el('strong','',info.title));if(info.detail)row.append(el('span','',info.detail));group.append(row);}out.push(group);}
-    } else out.push(el('p','source-note',noteFor('weather',now)));
+const lingering = () => presentSince != null && Date.now() - presentSince >= LINGER_MS;
+
+// ── top band ───────────────────────────────────────────────────────────────
+function renderClock(now, zone) {
+  const text = timeLabel(now, zone);
+  if (text === lastClock) return;
+  lastClock = text;
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: zone, hour: 'numeric', minute: '2-digit', hour12: true })
+    .formatToParts(new Date(now));
+  $('time').textContent = parts.filter((p) => ['hour', 'minute', 'literal'].includes(p.type)).map((p) => p.value).join('').trim();
+  $('period').textContent = parts.find((p) => p.type === 'dayPeriod')?.value ?? '';
+  $('date').textContent = new Intl.DateTimeFormat('en-US', { timeZone: zone, weekday: 'long', month: 'long', day: 'numeric' })
+    .format(new Date(now));
+}
+
+function renderNowWeather(m, now) {
+  const d = fresh(m.weather, 'weather', now) ? m.weather.data : null;
+  replace('now-weather', [d?.current, d?.today], () => {
+    if (!d?.current) return [];
+    const temp = el('div', 'temp');
+    temp.append(el('span', 'glyph', weatherGlyph(d.current.code)), el('span', 'deg', deg(d.current.temp)));
+    return [temp, el('p', 'cond', d.current.text),
+      Number.isFinite(d.today?.hi) ? el('p', 'range', `H ${deg(d.today.hi)} · L ${deg(d.today.lo)}`) : null];
+  });
+}
+
+function renderHeadline(h, current, now) {
+  const node = $('headline');
+  node.className = `headline ${h.tone}`;
+  replace('headline', [h, current ? minuteOf(now) : null], () => {
+    const label = el('p', 'label');
+    label.append(el('span', 'kw', h.label), document.createTextNode(h.detail ?? ''));
+    const out = [label, el('p', 'title', h.title)];
+    if (current && h.tone === 'now') {
+      const bar = el('div', 'bar'), fill = el('span');
+      fill.style.width = `${Math.min(100, Math.max(0, ((now - current.at) / (current.end - current.at)) * 100))}%`;
+      bar.append(fill);
+      out.push(bar);
+    }
     return out;
   });
 }
-function renderAttention(model, now) {
-  const notices=model.notices.filter(n=>n.type==='event').slice(0,mirror?1:2);
-  const brief=briefFor(state,now);
-  const hour=Number(new Intl.DateTimeFormat('en-US',{timeZone:model.timeZone,hour:'numeric',hourCycle:'h23'}).format(now));
-  // A quiet weekend does not need a countdown to its routine workout. An
-  // imminent event still earns the attention card, and the night brief stays.
-  document.querySelector('.attention').hidden=!notices.length&&!showTimeline(state,now)&&hour>=4&&hour<20;
-  $('attention-count').textContent=notices.length?`${notices.length} ${notices.length===1?'NOTICE':'NOTICES'}`:'';
-  replace('attention-body',[notices,brief,model.next,model.calendarReady,model.snoozedCount],()=>{
-    if(!notices.length) {
-      const box=el('div','quiet-state');
-      box.append(el('p','notice-label',brief.label),el('h3','',brief.title),el('p','',brief.detail));
-      return [box];
-    }
-    return notices.map(n=>{
-      const row=el('article',`notice${n.urgent?' urgent':''}`);
-      row.append(el('div','notice-label',n.label),el('h3','',n.title),el('p','',n.detail));
-      if(n.note) row.append(el('p','notice-note',n.note));
-      const foot=el('div','notice-foot');foot.append(el('span','source-note',n.type==='event'?'Calendar':n.type==='leave'?'Travel estimate':n.type==='rain'?'Weather':'Notion'));
-      const snooze=button('Snooze 10 min',()=>{preferences.snoozed[n.id]=Math.min(Date.now()+10*MINUTE,n.expiresAt);save();render();toast('Snoozed on this device.');});
-      snooze.dataset.focusKey=`snooze:${n.id}`;snooze.setAttribute('aria-label',`Snooze ${n.title} for 10 minutes`);foot.append(snooze);row.append(foot);return row;
+
+// ── left rail: rest of today ───────────────────────────────────────────────
+function streamRow(r, now, zone, sleep) {
+  const li = el('li', r.kind);
+  const meta = (text) => li.append(el('p', 'meta', text));
+  const title = (text) => li.append(el('p', 'title', text));
+  if (r.kind === 'event') {
+    if (r.now) li.classList.add('now');
+    else if (r.at - now <= 15 * MINUTE) li.classList.add('soon');
+    meta(r.now ? `now · until ${t(r.end, zone)}` : `${t(r.at, zone)} · ${relative(r.at, now)}`);
+    title(r.title);
+    if (r.location) li.append(el('p', 'sub', r.location));
+  } else if (r.kind === 'gap') {
+    title(`${durationLabel(r.end - Math.max(r.at, now))} free${r.beforeBed ? ' before bed' : ''}`);
+  } else if (r.kind === 'cutoff') {
+    if (r.live) li.classList.add('live');
+    meta(r.end ? `${t(r.at, zone)}–${t(r.end, zone)}` : t(r.at, zone));
+    title(r.title);
+  } else if (r.kind === 'bed') {
+    meta(`${t(r.at, zone)} · ${relative(r.at, now)}`);
+    title(`Bed → up ${t(sleep.wakeAt, zone)}`);
+    if (r.basis === 'first meeting' && r.firstMeeting) li.append(el('p', 'sub', `for ${t(r.firstMeeting.at, zone)} ${r.firstMeeting.title}`));
+  } else if (r.kind === 'tomorrow') {
+    meta(t(r.at, zone));
+    title(r.title);
+  }
+  return li;
+}
+
+function renderStream(stream, headline, now, sleep) {
+  const { zone } = stream;
+  const winddown = sleep.phase === 'winddown';
+  $('stream-heading').textContent = sleep.phase === 'morning' ? 'Today' : winddown ? 'Tonight' : 'Rest of today';
+  // Whatever the headline names is not repeated in the rail.
+  const rows = stream.rows.filter((r) => r.id == null || r.id !== headline.eventId);
+  const glance = winddown ? 6 : 4;
+  replace('stream', [rows, stream.tomorrow, minuteOf(now), sleep.wakeAt], () => {
+    const out = rows.map((r, i) => {
+      const li = streamRow(r, now, zone, sleep);
+      if (i >= glance && r.kind !== 'bed') li.classList.add('extra');
+      return li;
     });
-  });
-  $('undo-snooze').hidden=!model.snoozedCount;
-}
-function renderAgenda(m, model, now) {
-  const zone=model.timeZone;
-  const today=dateKey(now,zone);
-  // Noon UTC on the next civil date avoids DST and timezone day-boundary drift.
-  const tomorrow=new Date(`${today}T12:00:00Z`);tomorrow.setUTCDate(tomorrow.getUTCDate()+1);
-  let target=day==='today'?today:tomorrow.toISOString().slice(0,10);
-  let events=agendaFor(m.calendar?.data,target,now,zone);
-  if(mirror&&!events.length){target=tomorrow.toISOString().slice(0,10);events=agendaFor(m.calendar?.data,target,now,zone);}
-  $('agenda-heading').textContent=mirror?(target===today?'Still to come':'Tomorrow'):'Your day';
-  replace('agenda-body',[events,model.calendarReady,target,Math.floor(now/MINUTE)],()=>{
-    if(!events.length) {
-      const empty=el('div','agenda-empty');empty.append(el('p','empty',model.calendarReady?(target===today?'No more events today.':'Nothing scheduled tomorrow.'):'Calendar not current.'));
-      if(!mirror)empty.append(el('p','empty-sub',model.calendarReady?'Check the other day to see what’s next.':'Your saved events will return when available.'));return [empty];
+    if (stream.tomorrow.length) {
+      const brk = el('li', 'day-break');
+      brk.append(el('p', 'meta', 'Tomorrow'));
+      out.push(brk, ...stream.tomorrow.map((r) => streamRow(r, now, zone, sleep)));
     }
-    return events.slice(0,mirror?2:6).map(e=>{
-      const isCurrent=!e.allDay&&instant(e.start)<=now&&instant(e.end)>now;
-      const row=el('div',`agenda-row${isCurrent&&model.calendarReady?' current':''}`);
-      const when=el('div','event-time',e.allDay?'All day':timeLabel(instant(e.start),zone));
-      if(isCurrent&&model.calendarReady) when.append(el('span','','NOW'));
-      const copy=el('div');copy.append(el('p','event-title',e.title));
-      if(e.location)copy.append(el('p','event-location',e.location));row.append(when,copy);return row;
-    });
+    if (!out.length) out.push(el('li', 'gap', stream.calendarReady ? 'Nothing else scheduled' : 'Calendar reconnecting'));
+    return out;
   });
-  const extra=Math.max(0,events.length-(mirror?2:6));
-  $('calendar-note').textContent=[model.calendarReady?'':`Calendar · ${noteFor('calendar',now)}`,extra?`${extra} more events`:null].filter(Boolean).join(' · ');
-  $('calendar-note').hidden=!$('calendar-note').textContent;
+  $('all-day').hidden = !stream.allDay.length;
+  $('all-day').textContent = stream.allDay.join(' · ');
+  const note = $('stream-note');
+  note.hidden = stream.calendarReady;
+  note.textContent = stream.calendarReady ? '' : 'Calendar update delayed';
 }
-function renderTasks(m, now) {
-  const shown=focusTasks(state,now,mirror?2:4);
-  $('tasks-count').textContent='';
-  replace('tasks-body',[shown],()=>shown.length?shown.map(t=>{
-    const row=el('div','task-row');
-    const copy=el('div','task-copy');
-    copy.append(el('p','task-meta',`${t.source==='work'?'WORK':'PERSONAL'} · ${t.reason}`),el('p','task-title',t.title));
-    row.append(copy);return row;
-  }):[el('p','empty','Nothing to pull forward right now.')]);
-  $('more-tasks').hidden=true;
-  const unavailable=['notion','workboard'].filter(k=>!fresh(m[k],k,now)||m[k]?.data?.configured===false);
-  $('tasks-note').textContent=unavailable.length?`${unavailable.map(k=>k==='notion'?'Personal tasks':'Command Board').join(' · ')} unavailable`:'';
-  $('tasks-note').hidden=!unavailable.length;
-}
-function renderHorizon(m, now) {
-  const data=horizonFor(m.countdown,now,m.calendar?.data?.timeZone??'America/Los_Angeles');
-  replace('horizon-body',data,()=>{
-    if(!data?.items?.length)return [el('p','empty','No upcoming dates to count down to.')];
-    return data.items.slice(0,2).map(i=>{const row=el('div','horizon-row'),copy=el('div','horizon-copy');const title=String(i.label).toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()).replace(/\bSf\b/g,'SF');copy.append(el('p','',i.kind==='flight'?'NEXT TRIP':'COMING UP'),el('h3','',title));const count=el('div','horizon-days',i.days===0?'Today':i.days);if(i.days!==0)count.append(el('span','',i.days===1?'day':'days'));row.append(copy,count);return row;});
+
+// ── right rail ─────────────────────────────────────────────────────────────
+function renderWeatherBlock(m, now, zone) {
+  const d = fresh(m.weather, 'weather', now) ? m.weather.data : null;
+  const sun = sunlightFor(m.astro, now, zone);
+  const call = comfortFor(m.weather, now, zone);
+  replace('weather-block', [d?.hours, call, sun, minuteOf(now) - (minuteOf(now) % 10)], () => {
+    const hours = (d?.hours ?? []).filter((h) => instant(h.at) + 60 * MINUTE > now).slice(1, 6);
+    if (!hours.length && !sun.length) return [];
+    const out = [el('h2', 'rail-label', 'Weather ahead')];
+    if (call) out.push(el('p', 'weather-call', call));
+    const list = el('div', 'hours');
+    for (const h of hours) {
+      const row = el('div', `hour${wet(h.code) ? ' wet' : ''}`);
+      row.append(el('span', 't', t(instant(h.at), zone).replace(':00', '')), el('span', 'g', weatherGlyph(h.code)), el('span', 'v', deg(h.temp)));
+      list.append(row);
+    }
+    out.push(list);
+    if (sun.length) {
+      const s = el('div', 'sun');
+      for (const info of sun) s.append(el('p', info.kind, [info.title, info.detail].filter(Boolean).join(' · ')));
+      out.push(s);
+    }
+    return out;
   });
 }
-function renderSleep(m,now,zone) {
-  const entry=m.wellness,w=fresh(entry,'wellness',now)?entry.data?.dayWindow:null,plan=sleepPlanFor(m.calendar,now,zone,w?.lastNight);
-  replace('sleep-line',[w,plan,Math.floor(now/MINUTE)],()=>{
-    const line=$('sleep-line');
-    const item=(label,value)=>{const n=el('span','sleep-item');n.append(el('span','sleep-label',label),el('span','sleep-value',value));return n;};
-    const rows=[];
-    const night=w?.lastNight,showNight=plan?.night!==null&&(w&&night);
-    if(showNight){
-      rows.push(item('Last night',Number.isFinite(night.durationHours)?`${night.durationHours} h`:'duration unavailable'));
-      const wake=instant(night.wakeAt);
-      if(Number.isFinite(wake))rows.push(item('Woke',timeLabel(wake,zone)));
-      if(Number.isFinite(night.score))rows.push(item('Score',String(night.score)));
-    }else if(!(w&&night)){
-      // A stale, incomplete or absent night is named as missing, not zeroed.
-      // (Evening with a recorded night shows nothing here — it's old news.)
-      rows.push(item('Sleep',w?'Last night not recorded':'Sleep data unavailable'));
-    }
-    if(plan) {
-      rows.push(item('Tonight',plan.sleepLabel));
-      // "First meeting" already renders in the cutoffs basis and the Tomorrow
-      // card; a third copy here is the repeat Maanav flagged.
-    }
-    line.classList.toggle('missing',!w||!night);
-    return rows;
-  });
-}
-function renderSleepCutoffs(m,now,zone) {
-  const plan=sleepPlanFor(m.calendar,now,zone),night=fresh(m.wellness,'wellness',now)?m.wellness.data?.dayWindow?.lastNight:null;
-  replace('sleep-cutoffs',plan,()=>{
-    if(!plan)return [];
-    const heading=el('div','sleep-cutoffs-heading');
-    heading.append(el('span','sleep-cutoffs-title','Sleep cutoffs'),el('span','sleep-cutoffs-sleep',`Sleep ${plan.sleepLabel}`));
-    const basis=el('p','sleep-cutoffs-basis',plan.meeting?`${plan.basis} · ${plan.meeting.title}`:plan.basis);
-    const grid=el('div','sleep-cutoff-grid');
-    const rows=plan.cutoffs.map(cutoff=>{
-      const row=el('div',`sleep-cutoff${cutoff.past?' past':''}${plan.nextCutoff?.id===cutoff.id?' next':''}`);
-      row.setAttribute('aria-label',`${cutoff.label} ${cutoff.atEnd!=null?timeLabel(cutoff.at,zone)+'-'+timeLabel(cutoff.atEnd,zone):timeLabel(cutoff.at,zone)} · ${cutoff.rule}`);
-      // Caffeine is a window, not a deadline: "1:30PM-3:30PM".
-      row.append(el('span','sleep-cutoff-label',cutoff.label),el('span','sleep-cutoff-time',cutoff.atEnd!=null?`${timeLabel(cutoff.at,zone)}-${timeLabel(cutoff.atEnd,zone)}`:timeLabel(cutoff.at,zone)));
-      return row;
-    });
-    grid.append(...rows);
-    return [heading,basis,grid];
-  });
-}
-function renderDetails(m,now) {
-  if($('details-panel').hidden)return;
-  replace('details-panel',[m,sensors,Math.floor(now/MINUTE)],()=>{
-    const blocks=[];
-    const block=(title,lines,note)=>{const b=el('div','detail-block');b.append(el('h3','',title),...lines.map(v=>el('p','',v)));if(note)b.append(el('p','source-note',note));blocks.push(b);return b;};
-    const wellness=fresh(m.wellness,'wellness',now)?m.wellness.data:null;
-    const window=wellness?.dayWindow,night=window?.lastNight,plan=sleepPlanFor(m.calendar,now,m.calendar?.data?.timeZone??'America/Los_Angeles');
-    const sleepLines=[];
-    if(night){
-      sleepLines.push(`Last night ${Number.isFinite(night.durationHours)?`${night.durationHours} h`:'duration unavailable'}${Number.isFinite(night.score)?` · score ${night.score}`:''}`);
-    }else{
-      sleepLines.push(wellness?'Last night was not recorded.':'No recent sleep reading.');
-    }
-    if(Number.isFinite(wellness?.score)||Number.isFinite(wellness?.hrv)){
-      const averages=[Number.isFinite(wellness?.score)?`Sleep score ${wellness.score}`:null,Number.isFinite(wellness?.hrv)?`HRV ${wellness.hrv}`:null].filter(Boolean);
-      sleepLines.push(`${averages.join(' · ')} · ${wellness?.nights?`${wellness.nights}-night average`:'multi-night average'}`);
-    }
-    if(plan){
-      sleepLines.push(`Sleep ${plan.sleepLabel}`);
-      sleepLines.push(plan.meeting?`${plan.basis}: ${plan.meeting.title}`:plan.basis);
-      for(const cutoff of plan.cutoffs)sleepLines.push(`${cutoff.label} ${timeLabel(cutoff.at,m.calendar?.data?.timeZone??'America/Los_Angeles')} · ${cutoff.rule}`);
-    }
-    block('Sleep',sleepLines,noteFor('wellness',now));
-    const music=fresh(m.spotify,'spotify',now)?m.spotify.data:null;
-    block('Listening',music?.isPlaying&&music.track?[music.track.name,(music.track.artists??[]).join(', ')]:['Nothing playing right now.']);
-    const lights=fresh(m.nanoleaf,'nanoleaf',now)?m.nanoleaf.data?.lights:[];
-    block('At home',(lights?.length?lights.map(l=>`${l.name??l.label??'Light'} · ${l.on?'on':'off'}`):['No recent lighting update.']));
-    const q=m.quote?.data;if(q?.text)block('A thought for today',[q.text,`— ${q.author}`],q.credit??'');
-    const headlines=fresh(m.news,'news',now)?m.news.data:[];
-    if(headlines?.length)block('For later',headlines.slice(0,2).map(h=>h.title),'Hacker News');
-    block('Your connections',Object.keys(labels).filter(k=>m[k]).map(k=>`${labels[k]} · ${fresh(m[k],k,now)?'up to date':'update delayed'}`));
-    return blocks;
-  });
-}
-function renderLighting(m,now) {
-  const lights=lightingFor(m.nanoleaf,now);
-  const lingerSince=example?viewStartedAt:presenceSince;
-  $('room-lights').classList.toggle('expanded',lingerSince!=null&&Date.now()-lingerSince>=8000);
-  replace('room-lights',lights,()=>lights.map(light=>{
-    const row=el('span',`room-light ${light.status}`);
-    const dot=el('span','light-dot');dot.setAttribute('aria-hidden','true');
-    row.append(dot,el('span','light-name',light.name),el('span','light-state',light.status==='unknown'?'No signal':light.status==='on'?'On':'Off'));
-    if(light.percent!=null)row.append(el('span','light-level',`${light.percent}%`));
+
+function renderFocus(now) {
+  const tasks = focusTasks(state, now, 4);
+  $('focus-block').hidden = !tasks.length;
+  replace('focus', tasks.map((x) => [x.id, x.reason, x.title]), () => tasks.map((task, i) => {
+    const row = el('div', `item${i >= 2 ? ' extra' : ''}`);
+    row.append(el('p', 'meta', `${task.source === 'work' ? 'Work' : 'Personal'} · ${task.reason}`), el('p', 'title', task.title));
     return row;
   }));
 }
-function renderTimeline(now) {
-  document.querySelector('.day-timeline').hidden=!showTimeline(state,now);
-  if(!showTimeline(state,now))return;
-  const t=timelineFor(state,now),plan=sleepPlanFor(state?.modules?.calendar,now,t.zone),length=t.end-t.start;
-  $('timeline-source').textContent=t.source;
-  replace('timeline-body',[t.start,t.end,t.busy,t.calendarReady,plan,Math.floor(now/MINUTE)],()=>{
-    const ends=el('div','timeline-ends');ends.append(el('span','',`${t.wakeLabel} ${timeLabel(t.start,t.zone)}`),el('span','',`${t.sleepLabel} ${timeLabel(t.end,t.zone)}`));
-    const bar=el('div','timeline-track');bar.setAttribute('role','img');bar.setAttribute('aria-label',t.calendarReady?`${t.busy.length} scheduled blocks between ${timeLabel(t.start,t.zone)} and ${timeLabel(t.end,t.zone)}`:'Calendar unavailable; gaps cannot be determined');
-    for(const b of t.busy){const segment=el('span','timeline-busy');segment.style.left=`${(b.start-t.start)/length*100}%`;segment.style.width=`${(b.end-b.start)/length*100}%`;segment.title=`${b.titles.join(' · ')} · ${timeLabel(b.start,t.zone)}–${timeLabel(b.end,t.zone)}`;bar.append(segment);}
-    const cutoffGroups=new Map();
-    for(const cutoff of plan?.cutoffs??[]){
-      if(cutoff.at<t.start||cutoff.at>t.end)continue;
-      const group=cutoffGroups.get(cutoff.at)??[];group.push(cutoff);cutoffGroups.set(cutoff.at,group);
-    }
-    for(const group of cutoffGroups.values()){
-      const at=group[0].at,marker=el('span',`timeline-cutoff${group.some(c=>c.past)?' past':''}${group.some(c=>plan.nextCutoff?.id===c.id)?' next':''}`,group.map(c=>c.icon).join(''));
-      marker.style.left=`${(at-t.start)/length*100}%`;
-      marker.title=group.map(c=>`${c.label} ${timeLabel(c.at,t.zone)} · ${c.rule}`).join(' · ');
-      marker.setAttribute('aria-label',marker.title);bar.append(marker);
-    }
-    if(now>=t.start&&now<=t.end){const marker=el('span','timeline-now');marker.style.left=`${t.nowFraction*100}%`;bar.append(marker);}
-    const note=el('p','timeline-gap');
-    if(!t.calendarReady)note.textContent='Calendar unavailable · gaps not shown';
-    else if(t.nextGap){const g=t.nextGap,minutes=Math.floor((g.end-g.start)/MINUTE);note.textContent=`${g.start<=now?'Open now':'Next gap at '+timeLabel(g.start,t.zone)} · ${minutes>=60?Math.floor(minutes/60)+'h ':''}${minutes%60?minutes%60+'m':''} until ${timeLabel(g.end,t.zone)}`;}
-    else note.textContent=now>t.end?'Your waking day is winding down.':'No open block of 15 minutes or more.';
-    const scale=el('div','timeline-scale');
-    for(let hour=0;hour<=48;hour+=3){
-      const at=localInstant(dateKey(t.start,t.zone),hour,t.zone);
-      if(at<=t.start+30*MINUTE||at>=t.end-30*MINUTE)continue;
-      const tick=el('span','',timeLabel(at,t.zone).replace(':00',''));
-      tick.style.left=`${(at-t.start)/length*100}%`;scale.append(tick);
-    }
-    return [ends,bar,scale,note];
-  });
-}
-function renderAgents(m,now) {
-  const data=fresh(m.agents,'agents',now)?m.agents.data:null;
-  const unavailable=Boolean(m.agents&&(!fresh(m.agents,'agents',now)||data?.connected===false));
-  const items=(data?.items??[]).filter(a=>(a.live===true && (example||Number.isFinite(a.lastActivityAt)&&now/1000-a.lastActivityAt<=180) && ['running','working','thinking','tool'].includes(a.status))||a.status==='waiting');
-  const lingerSince=example?viewStartedAt:presenceSince;
-  const expanded=agentHover||agentFocus||(lingerSince!=null&&Date.now()-lingerSince>=8000);
-  const page=expanded?Math.floor((Date.now()-(lingerSince??viewStartedAt))/18000)%Math.max(1,Math.ceil(items.length/6)):0;
-  document.querySelector('.agent-station').hidden=!items.length&&!unavailable;
-  document.body.classList.toggle('agents-expanded',expanded);
-  const liveCount=items.filter(a=>a.live).length;
-  $('agent-count').textContent=unavailable?'UPDATES PAUSED':liveCount?`${liveCount} LIVE`:items.length?'WAITING':'';
-  replace('agents-body',[items,data?.connected,page,unavailable],()=>{
-    if(unavailable)return [el('p','agent-empty','Reconnecting to Hermes…')];
-    if(!items.length)return [el('p','agent-empty','No agents running right now.')];
-    const out=[];
-    for(const a of items.slice(page*6,page*6+6)){
-      const row=el('div',`agent-row${a.live?'':' waiting'}`);
-      const color=String(a.id).split('').reduce((n,c)=>(n*31+c.charCodeAt(0))%6,0);
-      const hue=[0,45,90,150,220,285][color];
-      const sprite=el('span','agent-sprite');sprite.setAttribute('aria-hidden','true');sprite.style.setProperty('--agent-hue',`${hue}deg`);
-      const name=a.source?.startsWith('hermes-')?'Hermes':a.name??'Agent';
-      const copy=el('div','agent-copy');copy.append(el('p','agent-name',`${name}${a.status==='waiting'?' · waiting':''}`),el('p','agent-task',a.task??'Working'));
-      row.append(sprite,copy);out.push(row);
-    }
-    if(items.length>6)out.push(el('p','agent-page',`${page*6+1}–${Math.min(items.length,page*6+6)} / ${items.length}`));
-    return out;
-  });
-}
-const agentStation=document.querySelector('.agent-station');
-agentStation.addEventListener('pointerenter',()=>{agentHover=true;render();});
-agentStation.addEventListener('pointerleave',()=>{agentHover=false;render();});
-agentStation.addEventListener('focusin',()=>{agentFocus=true;render();});
-agentStation.addEventListener('focusout',()=>{agentFocus=false;render();});
-function renderProgress(m,now) {
-  const d=fresh(m.progress,'progress',now)?m.progress.data:null;
-  replace('progress-body',d,()=>{
-    if(!d)return [el('p','empty','Progress tracking is connecting.')];
-    if(!d.trackingSince)return [el('p','empty','Waiting for a complete task snapshot.')];
-    const count=el('p','progress-count');count.append(el('strong','',d.weekCount??0),document.createTextNode(' completed'));
-    const out=[count];
-    if(d.trackingSince)out.push(el('p','source-note',`Observed since ${new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric',timeZone:d.timeZone}).format(new Date(d.trackingSince))}`));
-    const completed=(d.items??[]).slice(0,2);
-    for(const item of completed)out.push(el('p','progress-item',`✓ ${item.title}`));
-    if(d.coverage?.complete===false)out.push(el('p','source-note','Some task updates are delayed.'));
-    return out;
-  });
-}
-function renderMusic(m,now) {
-  const d=fresh(m.spotify,'spotify',now)?m.spotify.data:null;
-  const playing=d?.isPlaying===true&&d.track;
-  document.querySelector('.now-playing').hidden=!playing;
-  if(!playing)return;
-  replace('music-body',[d.track,d.progressMs],()=>{
-    const out=[];
-    if(d.track.albumArtUrl){const art=el('img','album-art');art.src=d.track.albumArtUrl;art.alt='';out.push(art);}
-    const copy=el('div','music-copy');copy.append(el('p','eyebrow','NOW PLAYING'),el('p','music-title',d.track.name),el('p','music-artist',(d.track.artists??[]).join(' · ')));
-    const line=el('div','music-progress'),fill=el('span');fill.style.width=`${Math.min(100,Math.max(0,d.progressMs/Math.max(1,d.durationMs)*100))}%`;line.append(fill);copy.append(line);out.push(copy);return out;
-  });
-}
-function render() {
-  const now=example&&state?.exampleNow?state.exampleNow:Date.now(),m=state?.modules??{},model=buildAttention({...state,modules:{...m,leaveby:null}},{now,snoozed:preferences.snoozed});
-  clock(now,model.timeZone);
-  renderLighting(m,now);
-  document.body.classList.toggle('soft-off',mirror&&!preview&&!example&&state?.display?.on===false);
-  $('day-note').textContent=model.current?'A little focus, right here.':model.next?`Next on your calendar at ${timeLabel(instant(model.next.start),model.timeZone)}.`:'A little room to think.';
-  renderTimeline(now);renderAgents(m,now);renderProgress(m,now);renderMusic(m,now);renderWeather(m,now,model.timeZone);renderAttention(model,now);renderAgenda(m,model,now);renderTasks(m,now);renderHorizon(m,now);renderSleep(m,now,model.timeZone);renderSleepCutoffs(m,now,model.timeZone);renderDetails(m,now);
-  document.querySelector('.hermy-note').classList.toggle('speaking',spoken?.until>Date.now()||example==='talking');
-  const quote=fresh(m.quote,'quote',now)?m.quote.data:null;
-  $('hermy-note').textContent=spoken?.until>Date.now()?spoken.text:example==='talking'?'Let’s take it one thing at a time.':quote?.text??'You don’t have to do it all at once. Give the next small thing your attention.';
-  $('quote-author').textContent=spoken?.until>Date.now()?'':quote?.author?`— ${quote.author}`:'';
 
+function renderAhead(m, now, zone) {
+  const horizon = horizonFor(m.countdown, now, zone);
+  const progress = fresh(m.progress, 'progress', now) ? m.progress.data : null;
+  const items = (horizon?.items ?? []).slice(0, 2);
+  const week = progress?.trackingSince && Number.isFinite(progress.weekCount) ? progress.weekCount : null;
+  $('ahead-block').hidden = !items.length && week == null;
+  replace('ahead', [items, week], () => {
+    const out = items.map((i) => {
+      const row = el('div', 'count'), what = el('div', 'what');
+      const name = String(i.label).toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()).replace(/\bSf\b/g, 'SF');
+      what.append(el('span', 'kind', i.kind === 'flight' ? 'Trip' : 'Milestone'), document.createTextNode(name));
+      const days = el('div', 'days', i.days === 0 ? 'today' : i.days);
+      if (i.days) days.append(el('small', '', i.days === 1 ? 'day' : 'days'));
+      row.append(what, days);
+      return row;
+    });
+    if (week != null) {
+      const p = el('p', 'week');
+      p.append(el('strong', '', week), document.createTextNode(` ${week === 1 ? 'task' : 'tasks'} done this week`));
+      out.push(p);
+    }
+    return out;
+  });
 }
-$('today-tab').addEventListener('click',()=>setDay('today'));
-$('tomorrow-tab').addEventListener('click',()=>setDay('tomorrow'));
-function setDay(value){day=value;$('today-tab').setAttribute('aria-pressed',String(day==='today'));$('tomorrow-tab').setAttribute('aria-pressed',String(day==='tomorrow'));render();}
-$('more-tasks').addEventListener('click',()=>{expandedTasks=!expandedTasks;render();});
-$('undo-snooze').addEventListener('click',()=>{preferences.snoozed={};save();render();});
-$('details-toggle').addEventListener('click',()=>{const open=$('details-panel').hidden;$('details-panel').hidden=!open;$('details-toggle').setAttribute('aria-expanded',String(open));$('details-toggle').replaceChildren(document.createTextNode('Around you '),el('span','',open?'−':'＋'));render();if(open)reveal($('details-panel'));});
-function accept(next){if(!next?.modules)return;state=next;connected=true;if(!example)try{localStorage.setItem(cacheKey,JSON.stringify(next));}catch{}render();}
-let polling=false;
-async function poll(){if(polling)return;polling=true;try{const r=await fetch('/api/state?view=dashboard',{cache:'no-store',signal:AbortSignal.timeout(8000)});if(!r.ok)throw new Error('unavailable');accept(await r.json());}catch{connected=false;render();}finally{polling=false;}}
-if(example){
-  $('example-bar').hidden=false;
-  const {exampleState}=await import('./dashboard-examples.js?v=9');
-  accept(exampleState(example,Date.now()));
-}else{
-  const {startLiveUpdates}=await import('./live-updates.js');
+
+function renderHome(m, now) {
+  const lights = lightingFor(m.nanoleaf, now);
+  replace('home', lights, () => {
+    const row = el('div', 'lights');
+    for (const l of lights) {
+      const n = el('span', `light ${l.status}`);
+      n.append(el('i'), document.createTextNode(`${l.name} ${l.status === 'unknown' ? '?' : l.status}`));
+      if (l.percent != null) n.append(el('span', 'pct', `${l.percent}%`));
+      row.append(n);
+    }
+    return [row];
+  });
+}
+
+// ── bottom band ────────────────────────────────────────────────────────────
+function renderAgents(m, now) {
+  const data = fresh(m.agents, 'agents', now) ? m.agents.data : null;
+  const items = (data?.items ?? []).filter((a) => a.status === 'waiting' || (a.live === true
+    && (example || (Number.isFinite(a.lastActivityAt) && now / 1000 - a.lastActivityAt <= 180))
+    && ['running', 'working', 'thinking', 'tool'].includes(a.status))).slice(0, 4);
+  $('agents').hidden = !items.length;
+  replace('agents', items.map((a) => [a.id, a.status, a.task]), () => {
+    const live = items.filter((a) => a.live).length;
+    const out = [el('p', 'status', live ? `${live} agent${live === 1 ? '' : 's'} working` : 'Waiting on you')];
+    for (const a of items) {
+      const row = el('div', `agent${a.live ? '' : ' waiting'}`);
+      const sprite = el('span', 'agent-sprite');
+      const hue = [0, 45, 90, 150, 220, 285][String(a.id).split('').reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 6, 0)];
+      sprite.style.setProperty('--agent-hue', `${hue}deg`);
+      const copy = el('div', 'agent-copy');
+      copy.append(el('p', 'name', a.source?.startsWith('hermes-') ? 'Hermes' : a.name ?? 'Agent'), el('p', 'task', a.task ?? 'Working'));
+      row.append(sprite, copy);
+      out.push(row);
+    }
+    return out;
+  });
+}
+
+function renderMusic(m, now) {
+  const d = fresh(m.spotify, 'spotify', now) ? m.spotify.data : null;
+  const playing = d?.isPlaying === true && d.track;
+  $('music').hidden = !playing;
+  if (!playing) return;
+  replace('music', [d.track, Math.round((d.progressMs / Math.max(1, d.durationMs)) * 50)], () => {
+    const out = [];
+    if (d.track.albumArtUrl) { const art = el('img'); art.src = d.track.albumArtUrl; art.alt = ''; out.push(art); }
+    const copy = el('div', 'copy'), title = el('p', 'title', d.track.name);
+    title.append(el('span', '', `  ${(d.track.artists ?? []).join(', ')}`));
+    const bar = el('div', 'progress'), fill = el('span');
+    fill.style.width = `${Math.min(100, Math.max(0, (d.progressMs / Math.max(1, d.durationMs)) * 100))}%`;
+    bar.append(fill);
+    copy.append(el('p', 'meta', 'Now playing'), title, bar);
+    out.push(copy);
+    return out;
+  });
+}
+
+function renderHermy(m, now) {
+  const speaking = spoken?.until > Date.now() || example === 'talking';
+  const quote = fresh(m.quote, 'quote', now) ? m.quote.data : null;
+  $('hermy').classList.toggle('speaking', speaking);
+  $('hermy-note').textContent = spoken?.until > Date.now() ? spoken.text
+    : quote?.text ?? 'One thing at a time.';
+  $('quote-author').textContent = !speaking && quote?.author ? `— ${quote.author}` : '';
+}
+
+// ── frame ──────────────────────────────────────────────────────────────────
+function render() {
+  const now = example && state?.exampleNow ? state.exampleNow : Date.now();
+  const m = state?.modules ?? {};
+  const zone = m.calendar?.data?.timeZone ?? 'America/Los_Angeles';
+  const sleep = scheduleNow(now, zone);
+  const body = document.body;
+  for (const p of ['day', 'winddown', 'bedtime', 'night', 'morning']) body.classList.toggle(`phase-${p}`, sleep.phase === p);
+  body.classList.toggle('warm', ['winddown', 'bedtime', 'night'].includes(sleep.phase));
+  body.classList.toggle('linger', example === 'linger' || lingering());
+  body.classList.toggle('soft-off', mirror && !example && state?.display?.on === false);
+
+  const stream = streamFor(state, now, sleep, { allCutoffs: sleep.phase === 'winddown' });
+  const headline = headlineFor(state, now, sleep, stream);
+  renderClock(now, zone);
+  renderNowWeather(m, now);
+  renderHeadline(headline, stream.rows.find((r) => r.kind === 'event' && r.now), now);
+  renderStream(stream, headline, now, sleep);
+  renderWeatherBlock(m, now, zone);
+  renderFocus(now);
+  renderAhead(m, now, zone);
+  renderHome(m, now);
+  renderAgents(m, now);
+  renderMusic(m, now);
+  renderHermy(m, now);
+  $('stale-dot').hidden = !Object.entries(m).some(([name, entry]) =>
+    ['calendar', 'weather'].includes(name) && entry?.data && !fresh(entry, name, now));
+}
+
+function accept(next) {
+  if (!next?.modules) return;
+  state = next;
+  if (!example) try { localStorage.setItem(cacheKey, JSON.stringify(next)); } catch {}
+  render();
+}
+
+// Anywhere but the kiosk, show the whole 1080×1920 canvas scaled to fit.
+function fit() {
+  if (mirror) return;
+  const scale = Math.min(innerWidth / 1080, innerHeight / 1920);
+  const board = $('dashboard');
+  board.style.transform = `scale(${scale})`;
+  board.style.marginLeft = `${Math.max(0, (innerWidth - 1080 * scale) / 2)}px`;
+}
+addEventListener('resize', fit);
+fit();
+
+if (example) {
+  const bar = $('example-bar');
+  bar.hidden = false;
+  bar.textContent = `Example · ${example} · sample data`;
+  const { exampleState } = await import('./dashboard-examples.js');
+  accept(exampleState(example, Date.now()));
+} else {
+  const { startLiveUpdates } = await import('./live-updates.js');
   startLiveUpdates();
-  state=load(cacheKey,null);render();poll();
-  const stream=new EventSource('/api/events?view=dashboard');
-  stream.addEventListener('state',e=>{try{accept(JSON.parse(e.data));}catch{}});
-  stream.addEventListener('open',()=>{connected=true;render();});
-  stream.addEventListener('error',()=>{connected=false;render();});
-  stream.addEventListener('say',e=>{try{const d=JSON.parse(e.data);spoken={text:String(d.text??'').slice(0,220),until:Date.now()+Math.min(Number(d.holdMs)||20000,60000)};clearTimeout(speechTimer);speechTimer=setTimeout(()=>{spoken=null;render();},Math.max(0,spoken.until-Date.now()));render();}catch{}});
-  stream.addEventListener('sensors',e=>{try{sensors=JSON.parse(e.data);if(sensors.present===true){presenceSince??=Date.now();}else presenceSince=null;}catch{}});
-  // Faster than the agent feed's 30-second freshness window, even without SSE.
-  setInterval(poll,15000);
+  try { state = JSON.parse(localStorage.getItem(cacheKey)); } catch { state = null; }
+  render();
+  let polling = false;
+  const poll = async () => {
+    if (polling) return;
+    polling = true;
+    try {
+      const r = await fetch('/api/state?view=dashboard', { cache: 'no-store', signal: AbortSignal.timeout(8000) });
+      if (r.ok) accept(await r.json());
+    } catch {} finally { polling = false; }
+  };
+  poll();
+  const stream = new EventSource('/api/events?view=dashboard');
+  stream.addEventListener('state', (e) => { try { accept(JSON.parse(e.data)); } catch {} });
+  stream.addEventListener('say', (e) => {
+    try {
+      const d = JSON.parse(e.data);
+      spoken = { text: String(d.text ?? '').slice(0, 220), until: Date.now() + Math.min(Number(d.holdMs) || 20_000, 60_000) };
+      clearTimeout(speechTimer);
+      speechTimer = setTimeout(() => { spoken = null; render(); }, spoken.until - Date.now());
+      render();
+    } catch {}
+  });
+  stream.addEventListener('sensors', (e) => {
+    try {
+      const present = JSON.parse(e.data).present === true;
+      presentSince = present ? presentSince ?? Date.now() : null;
+    } catch {}
+  });
+  // Within the agent feed's 30-second freshness window, even without SSE.
+  setInterval(poll, 15_000);
 }
-setInterval(render,5000);
-if(mirror&&!matchMedia('(prefers-reduced-motion: reduce)').matches)setInterval(()=>{$('dashboard').style.transform=`translate(${Math.round(Math.random()*6-3)}px,${Math.round(Math.random()*6-3)}px)`;},10*MINUTE);
+setInterval(render, 5_000);
+// Burn-in: drift the whole canvas a few pixels every ten minutes.
+if (mirror && !reducedMotion.matches) {
+  setInterval(() => {
+    $('dashboard').style.translate = `${Math.round(Math.random() * 6 - 3)}px ${Math.round(Math.random() * 6 - 3)}px`;
+  }, 10 * MINUTE);
+}

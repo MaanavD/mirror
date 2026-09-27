@@ -3,9 +3,9 @@ import { createLogger } from './logger.js';
 /*
   POST /api/presence — "someone is standing at the mirror".
 
-  Nothing on the server changes: presence is a frontend motion cue, so the ping
+  Nothing on the server changes: presence is a frontend cue, so the ping
   is normalised and re-broadcast on the existing SSE channel as a `presence`
-  event. The kiosk turns that into a 90s `active` motion burst (public/mode.js).
+  event. The kiosk uses the `sensors` stream for its linger layer.
 
   The eventual sender is an mmWave sensor on the Pi; until then curl and the
   Discord bot can drive it. Token-authed exactly like /api/say, wired in

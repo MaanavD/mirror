@@ -4,13 +4,12 @@ import express from 'express';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { mountLiveDashboard } from '../src/frontend-release.js';
+import { mountLiveDashboard, RELEASE_FILES } from '../src/frontend-release.js';
 
 test('live routes identify the loaded release and detect hot-copied assets without restarting', async t => {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'mirror-release-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
-  for (const file of ['dashboard.css', 'dashboard.js', 'live-updates.js', 'attention.js',
-    'day-model.js', 'dashboard-examples.js', 'hermy-sheet-v4.png']) {
+  for (const file of RELEASE_FILES.filter((f) => f !== 'dashboard.html')) {
     await writeFile(path.join(dir, file), 'initial');
   }
   await writeFile(path.join(dir, 'dashboard.html'), '<head></head><body>Live dashboard</body>');
