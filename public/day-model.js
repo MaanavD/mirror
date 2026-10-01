@@ -46,25 +46,25 @@ export function nightSkincareFor(dayKey) {
   const dayOfWeek = new Date(dayKey + 'T12:00:00Z').getUTCDay();
   if (dayOfWeek === 0) {
     return {
-      title: 'Dokdo · Microneedle 0.5mm · Illiyoon',
-      sub: 'Pen night: pure HA glide, no Biacna / minox 24h',
+      title: 'Dokdo · Pen 0.5mm · Illiyoon',
+      sub: 'Pure HA glide · no Biacna/minox 24h',
     };
   }
   if (dayOfWeek === 5 || dayOfWeek === 6) {
     return {
-      title: 'Dokdo · Barrier repair · Illiyoon',
-      sub: 'Pre-pen: Biacna paused 48h to prep barrier',
+      title: 'Dokdo · Barrier · Illiyoon',
+      sub: 'Pre-pen: Biacna paused 48h',
     };
   }
   if (dayOfWeek === 1) {
     return {
-      title: 'Dokdo · Barrier repair · Illiyoon',
-      sub: 'Post-pen: 24h recovery, no Biacna / no minox',
+      title: 'Dokdo · Barrier · Illiyoon',
+      sub: 'Post-pen: 24h recovery, no Biacna/minox',
     };
   }
   return {
-    title: 'Dokdo · Biacna gel · Illiyoon',
-    sub: 'Pea-sized Biacna across face, buffer with cream',
+    title: 'Dokdo · Biacna · Illiyoon',
+    sub: 'Pea-sized, buffer with cream',
   };
 }
 

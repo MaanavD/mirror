@@ -37,15 +37,15 @@ test('cutoffs count back from bed; caffeine is a window',()=>{
 
 test('nightSkincareFor rotates across weekly treatment phases',()=>{
  // 2026-10-04 is Sunday (pen night)
- assert.match(nightSkincareFor('2026-10-04').title, /Microneedle/);
- assert.match(nightSkincareFor('2026-10-04').sub, /Pen night/);
+ assert.match(nightSkincareFor('2026-10-04').title, /Pen 0\.5mm/);
+ assert.match(nightSkincareFor('2026-10-04').sub, /Pure HA/);
  // 2026-10-05 is Monday (post-pen barrier rest)
- assert.match(nightSkincareFor('2026-10-05').title, /Barrier repair/);
+ assert.match(nightSkincareFor('2026-10-05').title, /Barrier/);
  assert.match(nightSkincareFor('2026-10-05').sub, /Post-pen/);
  // 2026-10-06 is Tuesday (Biacna active)
- assert.match(nightSkincareFor('2026-10-06').title, /Biacna gel/);
+ assert.match(nightSkincareFor('2026-10-06').title, /Biacna/);
  // 2026-10-09 is Friday (pre-pen pause)
- assert.match(nightSkincareFor('2026-10-09').title, /Barrier repair/);
+ assert.match(nightSkincareFor('2026-10-09').title, /Barrier/);
  assert.match(nightSkincareFor('2026-10-09').sub, /Pre-pen/);
 });
 
