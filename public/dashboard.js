@@ -239,25 +239,48 @@ function renderHome(m, now) {
 }
 
 // ── bottom band ────────────────────────────────────────────────────────────
+// Personal and work agents run on the same host in different Hermes profiles.
+// Each profile owns a sprite hue and a label colour, so the difference between
+// them reads across the room without a word on the glass.
+const AGENT_PROFILES = {
+  default: { key: 'personal', hue: 0 },
+  // 90deg lands the teal sprite sheet on the same violet as --work.
+  work: { key: 'work', hue: 90 },
+};
+const AGENT_FALLBACK_HUES = [45, 150, 285];
+// Five rows, the count and a remaining marker are what the band holds at 1080
+// px without crowding the glass; the marker keeps a busier day honest.
+const AGENT_LIMIT = 5;
+
+function agentProfile(a) {
+  return AGENT_PROFILES[String(a?.profile ?? '').toLowerCase()] ?? { key: 'other', hue: null };
+}
+
 function renderAgents(m, now) {
   const data = fresh(m.agents, 'agents', now) ? m.agents.data : null;
   const items = (data?.items ?? []).filter((a) => a.status === 'waiting' || (a.live === true
     && (example || (Number.isFinite(a.lastActivityAt) && now / 1000 - a.lastActivityAt <= 180))
-    && ['running', 'working', 'thinking', 'tool'].includes(a.status))).slice(0, 4);
-  $('agents').hidden = !items.length;
-  replace('agents', items.map((a) => [a.id, a.status, a.task]), () => {
+    && ['running', 'working', 'thinking', 'tool'].includes(a.status)));
+  const shown = items.slice(0, AGENT_LIMIT);
+  const hidden = items.length - shown.length;
+  $('agents').hidden = !shown.length;
+  replace('agents', shown.map((a) => [a.id, a.status, a.task, a.profile]).concat([['more', hidden]]), () => {
+    // The count is every live agent, including any past the row cutoff.
     const live = items.filter((a) => a.live).length;
-    const out = [el('p', 'status', live ? `${live} agent${live === 1 ? '' : 's'} working` : 'Waiting on you')];
-    for (const a of items) {
-      const row = el('div', `agent${a.live ? '' : ' waiting'}`);
+    const out = [el('p', 'status', live ? `${live} working` : 'Waiting on you')];
+    for (const a of shown) {
+      const profile = agentProfile(a);
+      const row = el('div', `agent ${profile.key}${a.live ? '' : ' waiting'}`);
       const sprite = el('span', 'agent-sprite');
-      const hue = [0, 45, 90, 150, 220, 285][String(a.id).split('').reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 6, 0)];
+      const hue = profile.hue ?? AGENT_FALLBACK_HUES[String(a.id).split('')
+        .reduce((n, c) => (n * 31 + c.charCodeAt(0)) % AGENT_FALLBACK_HUES.length, 0)];
       sprite.style.setProperty('--agent-hue', `${hue}deg`);
       const copy = el('div', 'agent-copy');
-      copy.append(el('p', 'name', a.source?.startsWith('hermes-') ? 'Hermes' : a.name ?? 'Agent'), el('p', 'task', a.task ?? 'Working'));
+      copy.append(el('p', 'name', a.name ?? 'Agent'), el('p', 'task', a.task ?? 'Working'));
       row.append(sprite, copy);
       out.push(row);
     }
+    if (hidden > 0) out.push(el('p', 'agent-more', `+${hidden}`));
     return out;
   });
 }

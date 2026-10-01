@@ -12,6 +12,7 @@
   --muted: #6f8794;
   --accent: #78dfe3;
   --amber: #e8c28c;
+  --work: #c3a6f5;
   --line: #22394a;
   --clock: #d8f4f6;
   --pixel: 'Press Start 2P', ui-monospace, monospace;
@@ -22,6 +23,7 @@
 /* After the blue-light cutoff the glass goes warm, like everything else should. */
 body.warm {
   --text: #f1e4d2; --secondary: #c7b299; --muted: #8a7560; --accent: #e8b877; --line: #3a2d20; --clock: #f3e2c8;
+  --work: #e6a3c4;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--bg); overflow: hidden; }
@@ -138,13 +140,17 @@ body.soft-off #dashboard { opacity: 0; }
 
 /* ── bottom band ──────────────────────────────────────────────────────── */
 .bottom { position: absolute; left: var(--edge); right: var(--edge); bottom: 44px; display: flex; flex-direction: column; gap: 26px; }
-.agents { display: flex; align-items: flex-end; gap: 28px; min-width: 0; }
+.agents { display: flex; align-items: flex-end; gap: 12px; min-width: 0; }
 .agents .status { font: 12px/1.6 var(--pixel); color: var(--muted); text-transform: uppercase; margin-right: auto; align-self: center; }
-.agent { display: flex; align-items: center; gap: 10px; min-width: 0; max-width: 300px; }
+.agent { display: flex; align-items: center; gap: 10px; min-width: 0; max-width: 150px; }
 .agent-sprite { flex: 0 0 48px; width: 48px; height: 48px; background: url('/hermy-sheet-v4.png') 0 0/192px 96px no-repeat; image-rendering: pixelated;
   filter: hue-rotate(var(--agent-hue,0deg)); animation: agent-work 1.6s steps(1,end) infinite; }
 .agent.waiting .agent-sprite { animation: none; opacity: .7; }
-.agent .name { font: 22px/1.1 var(--terminal); color: var(--accent); white-space: nowrap; }
+.agent .name { font: 22px/1.1 var(--terminal); color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 92px; }
+.agents .agent-more { font: 12px/1.6 var(--pixel); color: var(--muted); align-self: center; }
+/* Work agents take the second colour so a glance across the glass sorts them
+   from the personal ones; a waiting agent is amber whoever it belongs to. */
+.agent.work .name { color: var(--work); }
 .agent.waiting .name { color: var(--amber); }
 .agent .task { display: none; font: 20px/1.1 var(--terminal); color: var(--secondary); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .linger .agent .task { display: block; }

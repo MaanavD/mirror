@@ -60,6 +60,7 @@ export function isWorkingHeartbeatLive(status, lastActivityAt, now = new Date())
 export function normalizeAgent(raw, now = new Date()) {
   if (!raw || typeof raw !== 'object') return null;
   const source = cleanText(raw.source, 40);
+  const profile = cleanText(raw.profile, 24).toLowerCase() || 'default';
   const threadId = cleanText(raw.thread_id, 160);
   const sessionId = cleanText(raw.session_id, 160);
   const fallbackId = [source, threadId || sessionId].filter(Boolean).join(':');
@@ -79,6 +80,9 @@ export function normalizeAgent(raw, now = new Date()) {
     live: isWorkingHeartbeatLive(status, lastActivityAt, now),
     lastActivityAt,
     source,
+    // Which Hermes profile owns the agent: one host, several profiles, so this
+    // is the only field that separates a personal agent from a work one.
+    profile,
     url: cleanText(raw.url, 500),
   };
 }

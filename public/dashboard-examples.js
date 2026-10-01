@@ -68,13 +68,19 @@ export function exampleState(kind, realNow = Date.now()) {
   if (kind === 'day' || kind === 'linger' || kind === 'agents') {
     m.spotify = module({ isPlaying: true, track: { name: 'You Are the Right One', artists: ['Sports'] }, progressMs: 74_000, durationMs: 210_000 });
     m.agents.data.items = [
-      { id: 'a', name: 'Hermes', task: 'Preparing the demo comparison', status: 'running', live: true },
-      { id: 'b', name: 'Luna', task: 'Checking the documentation links', status: 'running', live: true },
+      { id: 'a', name: 'Desk layout', task: 'Desk build rev 2 wiring list', status: 'running', live: true, profile: 'default' },
+      { id: 'f', name: 'Draft review', task: 'Waiting for your review of the draft', status: 'waiting', live: false, profile: 'work' },
+      { id: 'b', name: 'Saachi trip', task: 'Goldblum tickets and the Oct 11 clash', status: 'running', live: true, profile: 'default' },
     ];
   }
   if (kind === 'agents') m.agents.data.items.push(
-    { id: 'c', name: 'Scout', task: 'Collecting research sources', status: 'running', live: true },
-    { id: 'f', name: 'Atlas', task: 'Waiting for your review of the draft', status: 'waiting', live: false });
+    { id: 'c', name: 'Prompt A/B', task: 'Grounding prompt examples for FLUX 3', status: 'running', live: true, profile: 'work' },
+    { id: 'd', name: 'Launch PR', task: 'Review the FLUX 3 Image launch post', status: 'running', live: true, profile: 'work' },
+    { id: 'e', name: 'Skill audit', task: 'Auditing the skill catalogue', status: 'running', live: true, profile: 'default' },
+    { id: 'g', name: 'Stock check', task: "lululemon WMTM men's stock check", status: 'running', live: true, profile: 'default' },
+    { id: 'h', name: 'Pack list', task: 'Athens packing list by Friday', status: 'running', live: true, profile: 'default' },
+    { id: 'i', name: 'Voice lane', task: 'Voice pipeline build window', status: 'working', live: true, profile: 'default' },
+    { id: 'j', name: 'Card plan', task: 'Card order for the Airbnb installments', status: 'running', live: true, profile: 'default' });
   if (kind === 'quiet') m.calendar.data.events = events.filter((e) => e.id.startsWith('t-'));
   if (kind === 'morning') m.weather.data.hours[2].code = 63;
   if (kind === 'bedtime') m.wellness.data.dayWindow.lastNight.wakeAt = iso(at(8, 20, yesterday));

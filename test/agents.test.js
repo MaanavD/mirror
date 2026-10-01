@@ -30,8 +30,28 @@ test('normalizes live working agents and sanitizes visible text', () => {
     live: true,
     lastActivityAt: NOW_S - 30,
     source: 'hermes-discord',
+    profile: 'default',
     url: 'https://discord.example/thread-1',
   });
+});
+
+test('carries the profile that owns the agent', () => {
+  const work = normalizeAgent({
+    name: 'Launch PR',
+    title: 'Review the launch post',
+    status: 'working',
+    last_activity_at: NOW_S,
+    source: 'hermes-discord',
+    thread_id: 'thread-2',
+    profile: 'Work',
+  }, NOW);
+  const missing = normalizeAgent({
+    name: 'No profile', title: 'Legacy probe row', status: 'working',
+    last_activity_at: NOW_S, thread_id: 'thread-3',
+  }, NOW);
+
+  assert.equal(work.profile, 'work');
+  assert.equal(missing.profile, 'default');
 });
 
 test('working heartbeat expires after 180 seconds', () => {
