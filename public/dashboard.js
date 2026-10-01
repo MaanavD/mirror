@@ -139,6 +139,7 @@ function streamRow(r, now, zone, sleep) {
     if (r.live) li.classList.add('live');
     meta(r.end ? `${t(r.at, zone)}–${t(r.end, zone)}` : t(r.at, zone));
     title(r.title);
+    if (r.sub) li.append(el('p', 'sub', r.sub));
   } else if (r.kind === 'bed') {
     meta(`${t(r.at, zone)} · ${relative(r.at, now)}`);
     title(`Bed → up ${t(sleep.wakeAt, zone)}`);

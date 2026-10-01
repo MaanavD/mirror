@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {lightingFor,localInstant,prioritiesFor,comfortFor,focusTasks,firstMeetingTomorrow,cutoffsFor,streamFor,headlineFor,lastNightFor} from '../public/day-model.js';
+import {lightingFor,localInstant,prioritiesFor,comfortFor,focusTasks,firstMeetingTomorrow,cutoffsFor,streamFor,headlineFor,lastNightFor,nightSkincareFor} from '../public/day-model.js';
 import {sleepSchedule} from '../public/sleep-model.js';
 import {taskRecords,pickProperties} from '../src/modules/notion.js';
 import {shapeAgenda} from '../src/modules/calendar.js';
@@ -28,10 +28,25 @@ test('cutoffs count back from bed; caffeine is a window',()=>{
  assert.deepEqual(cutoffs.map(c=>[c.id,c.at]),[
   ['caffeine',localInstant('2026-09-06',12,zone,30)],['exercise',localInstant('2026-09-06',20,zone,30)],
   ['food',localInstant('2026-09-06',20,zone,30)],['blue-light',localInstant('2026-09-06',22,zone,30)],
-  ['screens',localInstant('2026-09-06',23,zone,30)]]);
+  ['screens',localInstant('2026-09-06',23,zone,30)],
+  ['skincare',localInstant('2026-09-06',23,zone,45)]]);
  assert.equal(cutoffs[0].atEnd,localInstant('2026-09-06',14,zone,30));
  assert.equal(next.id,'caffeine','inside the window it is still the live cutoff');
  assert.equal(cutoffsFor(bed,localInstant('2026-09-06',21,zone,15)).next.id,'blue-light');
+});
+
+test('nightSkincareFor rotates across weekly treatment phases',()=>{
+ // 2026-10-04 is Sunday (pen night)
+ assert.match(nightSkincareFor('2026-10-04').title, /Microneedle/);
+ assert.match(nightSkincareFor('2026-10-04').sub, /Pen night/);
+ // 2026-10-05 is Monday (post-pen barrier rest)
+ assert.match(nightSkincareFor('2026-10-05').title, /Barrier repair/);
+ assert.match(nightSkincareFor('2026-10-05').sub, /Post-pen/);
+ // 2026-10-06 is Tuesday (Biacna active)
+ assert.match(nightSkincareFor('2026-10-06').title, /Biacna gel/);
+ // 2026-10-09 is Friday (pre-pen pause)
+ assert.match(nightSkincareFor('2026-10-09').title, /Barrier repair/);
+ assert.match(nightSkincareFor('2026-10-09').sub, /Pre-pen/);
 });
 
 // Fixtures are stamped as just fetched at whatever instant a test asks about.

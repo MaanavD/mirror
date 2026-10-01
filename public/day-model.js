@@ -42,21 +42,56 @@ export function firstMeetingTomorrow(calendarEntry, now=Date.now(), zone='Americ
 // Sleep hygiene cutoffs, counted back from the bed time the guard enforces.
 // Caffeine is a window (the last cup lands somewhere inside it), the rest are
 // deadlines.
+export function nightSkincareFor(dayKey) {
+  const dayOfWeek = new Date(dayKey + 'T12:00:00Z').getUTCDay();
+  if (dayOfWeek === 0) {
+    return {
+      title: 'Dokdo · Microneedle 0.5mm · Illiyoon',
+      sub: 'Pen night: pure HA glide, no Biacna / minox 24h',
+    };
+  }
+  if (dayOfWeek === 5 || dayOfWeek === 6) {
+    return {
+      title: 'Dokdo · Barrier repair · Illiyoon',
+      sub: 'Pre-pen: Biacna paused 48h to prep barrier',
+    };
+  }
+  if (dayOfWeek === 1) {
+    return {
+      title: 'Dokdo · Barrier repair · Illiyoon',
+      sub: 'Post-pen: 24h recovery, no Biacna / no minox',
+    };
+  }
+  return {
+    title: 'Dokdo · Biacna gel · Illiyoon',
+    sub: 'Pea-sized Biacna across face, buffer with cream',
+  };
+}
+
 export const SLEEP_CUTOFFS = [
   { id:'caffeine', label:'Last caffeine', offsetMinutes:12*60, untilOffsetMinutes:10*60, rule:'10–12h before bed' },
   { id:'exercise', label:'Finish exercise', offsetMinutes:4*60, rule:'4h before bed' },
   { id:'food', label:'Last meal', offsetMinutes:4*60, rule:'4h before bed' },
   { id:'blue-light', label:'Warm light only', offsetMinutes:2*60, rule:'2h before bed' },
   { id:'screens', label:'Screens away', offsetMinutes:60, rule:'1h before bed' },
+  { id:'skincare', label:'Night skincare', offsetMinutes:45, rule:'45m before bed' },
 ];
 
-export function cutoffsFor(bedAt, now=Date.now()) {
+export function cutoffsFor(bedAt, now=Date.now(), zone='America/Los_Angeles') {
   if(!Number.isFinite(bedAt))return {cutoffs:[],next:null};
-  const cutoffs=SLEEP_CUTOFFS.map(d=>({
-    ...d,
-    at:bedAt-d.offsetMinutes*MINUTE,
-    atEnd:d.untilOffsetMinutes!=null?bedAt-d.untilOffsetMinutes*MINUTE:null,
-  })).map(c=>({...c,past:(c.atEnd??c.at)<now}));
+  const skin = nightSkincareFor(dateKey(bedAt, zone));
+  const cutoffs=SLEEP_CUTOFFS.map(d=>{
+    const c = {
+      ...d,
+      at:bedAt-d.offsetMinutes*MINUTE,
+      atEnd:d.untilOffsetMinutes!=null?bedAt-d.untilOffsetMinutes*MINUTE:null,
+    };
+    if (d.id === 'skincare') {
+      c.label = skin.title;
+      c.sub = skin.sub;
+    }
+    return c;
+  }).map(c=>({...c,past:(c.atEnd??c.at)<now}));
   // A window stays live between its two ends; a deadline until it passes.
   // Exercise and food share a time, so they read as one row.
   const next=cutoffs.find(c=>!c.past)??null;
@@ -96,13 +131,13 @@ export function streamFor(state, now=Date.now(), sleep=null, {allCutoffs=false}=
   }
   if(ready&&rows.length&&Number.isFinite(bedAt)&&bedAt-cursor>=60*MINUTE)rows.push({kind:'gap',at:cursor,end:bedAt,beforeBed:true});
   if(Number.isFinite(bedAt)&&bedAt>now){
-    const {cutoffs,next}=cutoffsFor(bedAt,now);
+    const {cutoffs,next}=cutoffsFor(bedAt,now,zone);
     const shown=allCutoffs?cutoffs.filter(c=>!c.past):next?[next]:[];
     const seen=new Set();
     for(const c of shown){
       if(seen.has(c.at)){rows.find(r=>r.kind==='cutoff'&&r.at===c.at).title+=` · ${c.label.toLowerCase()}`;continue;}
       seen.add(c.at);
-      rows.push({kind:'cutoff',id:c.id,at:c.at,end:c.atEnd,title:c.label,rule:c.rule,live:c.at<=now});
+      rows.push({kind:'cutoff',id:c.id,at:c.at,end:c.atEnd,title:c.label,rule:c.rule,sub:c.sub,live:c.at<=now});
     }
     rows.push({kind:'bed',at:bedAt,title:'Bed',basis:sleep.bedBasis,firstMeeting:sleep.firstMeeting});
   }
