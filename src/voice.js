@@ -61,6 +61,8 @@ export class Voice {
    * Watches for transitions worth speaking about.
    */
   observe(modules, { now = new Date() } = {}) {
+    // VOICE_AUTO=0: the mirror keeps its mouth shut on its own.
+    if (this.#config.display.voiceAuto === false) return;
     const day = now.toISOString().slice(0, 10);
 
     // Virus count dropping to zero => area clean.

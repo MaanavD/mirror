@@ -20,6 +20,24 @@ test('disabled in mock mode', async () => {
   assert.deepEqual(await v.play('jackin'), { voice: 'disabled' });
 });
 
+test('observe is muted when display.voiceAuto is explicitly false', async () => {
+  const played = [];
+  const v = new Voice({
+    config: cfg({ display: { piAgentUrl: 'http://127.0.0.1:1', piAgentToken: 't', voiceAuto: false } }),
+    log: silentLog,
+  });
+  v.play = async (clip) => (played.push(clip), { voice: 'ok' });
+  v.observe({
+    wellness: { data: { score: 95 } },
+    countdown: { data: { items: [{ days: 0, kind: 'flight' }] } },
+  });
+  await new Promise((r) => setTimeout(r, 10));
+  assert.deepEqual(played, []);
+  // Manual speaks still go through play() directly.
+  assert.equal((await v.play('flight_day', { force: true })).voice, 'ok');
+  assert.deepEqual(played, ['flight_day']);
+});
+
 test('unreachable agent fails soft', async () => {
   const v = new Voice({ config: cfg(), log: silentLog });
   const r = await v.play('jackin', { force: true });

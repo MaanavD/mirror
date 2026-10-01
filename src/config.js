@@ -138,6 +138,10 @@ export const config = {
 
   display: {
     token: str('DISPLAY_TOKEN'),
+    // VOICE_AUTO=0 mutes the automatic event clips (flight day, readiness).
+    // Explicit false only: a missing key stays enabled, and the manual
+    // POST /api/speak endpoint never consults this flag.
+    voiceAuto: flag('VOICE_AUTO', true),
     piAgentUrl: str('PI_AGENT_URL').replace(/\/+$/, ''),
     piAgentToken: str('PI_AGENT_TOKEN'),
     // Kept under the 10s global ceiling: a POST /api/display/* must not hang.

@@ -79,7 +79,7 @@ export const SLEEP_CUTOFFS = [
 
 export function cutoffsFor(bedAt, now=Date.now(), zone='America/Los_Angeles') {
   if(!Number.isFinite(bedAt))return {cutoffs:[],next:null};
-  const skin = nightSkincareFor(dateKey(bedAt, zone));
+  const skin = nightSkincareFor(dateKey(bedAt - 45 * MINUTE, zone));
   const cutoffs=SLEEP_CUTOFFS.map(d=>{
     const c = {
       ...d,
